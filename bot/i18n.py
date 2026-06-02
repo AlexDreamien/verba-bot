@@ -1,22 +1,71 @@
-"""Tiny message catalog for the bot (Russian + English).
+"""Tiny message catalog for the bot (Ukrainian + Russian + English).
 
 Repo content is English, but user-facing bot text is localized. Each user has a
-``lang`` column; handlers call :func:`t` with that language. The Verba game
-itself stays Ukrainian — only the bot's own messages are translated here.
+``lang`` column; handlers call :func:`t` with that language. The default language
+is Ukrainian. The game (webapp) has its own independent ru/uk/en switch.
 
-``t(key, lang, **kw)`` looks up the key for ``lang``, falls back to English, and
-applies ``str.format(**kw)``. The test suite asserts both locales expose the
-same keys.
+``t(key, lang, **kw)`` looks up the key for ``lang``, falls back to the default
+language, and applies ``str.format(**kw)``. The test suite asserts every locale
+exposes the same keys.
 """
 
 from __future__ import annotations
 
 __all__ = ["DEFAULT_LANG", "LANGS", "t"]
 
-DEFAULT_LANG = "ru"
-LANGS = ("ru", "en")
+DEFAULT_LANG = "uk"
+LANGS = ("uk", "ru", "en")
 
 MESSAGES: dict[str, dict[str, str]] = {
+    "uk": {
+        "welcome": (
+            "Привіт! Це бот щоденної гри «Verba» — вгадай слово з 5 літер за 6 спроб.\n\n"
+            "Ти підписаний на щоденну розсилку. Команди:\n"
+            "/play — отримати посилання на сьогоднішню гру\n"
+            "/stats — загальна статистика за день\n"
+            "/me — твоя особиста статистика\n"
+            "/stop — відписатися\n"
+            "/lang — змінити мову"
+        ),
+        "already_subscribed": "Ти вже підписаний. /play — зіграти в сьогоднішню гру.",
+        "unsubscribed": "Ти відписався від розсилки. /start — підписатися знову.",
+        "not_subscribed": "Ти і так не підписаний. /start — підписатися.",
+        "play_prompt": "Сьогодні — гра «Verba». Натисни кнопку, щоб зіграти 👇",
+        "play_button": "🎮 Грати",
+        "no_webapp": "Адресу гри не налаштовано (WEBAPP_URL). Звернись до адміністратора.",
+        "broadcast_not_admin": "Ця команда лише для адміністраторів.",
+        "broadcast_done": "Розсилку надіслано: {ok} з {total}.",
+        "broadcast_no_subs": "Немає підписників для розсилки.",
+        "stats_title": "📊 Статистика за {day}",
+        "stats_none": "За {day} ще немає даних.",
+        "stats_body": (
+            "Гравців: {total}\n"
+            "✅ вгадали: {won}\n"
+            "❌ не вгадали: {lost}\n"
+            "⏳ не догравали: {unfinished}\n"
+            "💤 не грали: {not_played}\n"
+            "{extra}"
+        ),
+        "stats_extra": "Середня кількість спроб: {avg_attempts}\nСередній час: {avg_time}",
+        "me_title": "👤 Твоя статистика",
+        "me_none": "Ти ще не грав. /play — почати.",
+        "me_body": (
+            "Зіграно днів: {played}\n"
+            "✅ перемог: {wins}\n"
+            "❌ поразок: {losses}\n"
+            "Відсоток перемог: {win_rate}%\n"
+            "Найкращий результат: {best}\n"
+            "Поточна серія: {streak} 🔥\n"
+            "Найкраща серія: {max_streak}"
+        ),
+        "best_none": "—",
+        "best_attempts": "{n}/6",
+        "lang_choose": "Обери мову:",
+        "lang_set": "Мову змінено на українську.",
+        "summary_title": "🏁 Підсумки дня {day}",
+        "time_seconds": "{s} с",
+        "time_minutes": "{m} хв {s} с",
+    },
     "ru": {
         "welcome": (
             "Привет! Это бот ежедневной игры «Verba» — угадай слово из 5 букв за 6 попыток.\n\n"
@@ -30,8 +79,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "already_subscribed": "Ты уже подписан. /play — сыграть в сегодняшнюю игру.",
         "unsubscribed": "Ты отписался от рассылки. /start — подписаться снова.",
         "not_subscribed": "Ты и так не подписан. /start — подписаться.",
-        "play_prompt": "Сьогодні — гра «Verba». Натисни кнопку, щоб зіграти 👇",
-        "play_button": "🎮 Грати",
+        "play_prompt": "Сегодня — игра «Verba». Нажми кнопку, чтобы сыграть 👇",
+        "play_button": "🎮 Играть",
         "no_webapp": "Адрес игры не настроен (WEBAPP_URL). Обратись к администратору.",
         "broadcast_not_admin": "Эта команда только для администраторов.",
         "broadcast_done": "Рассылка отправлена: {ok} из {total}.",

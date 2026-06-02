@@ -31,11 +31,15 @@ __all__ = ["VerbaDB", "Result", "Status", "User"]
 Status = Literal["in_progress", "won", "lost", "unfinished", "not_played"]
 TERMINAL: frozenset[str] = frozenset({"won", "lost"})
 
+# Default language for newly-seen users (the bot's default is Ukrainian). Kept
+# here (not imported from i18n) so storage stays independent of the message layer.
+DEFAULT_USER_LANG = "uk"
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     user_id    INTEGER PRIMARY KEY,
     username   TEXT,
-    lang       TEXT NOT NULL DEFAULT 'ru',
+    lang       TEXT NOT NULL DEFAULT 'uk',
     subscribed INTEGER NOT NULL DEFAULT 1,
     joined_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -89,12 +93,17 @@ class VerbaDB:
     # -- users -------------------------------------------------------------
 
     def add_user(self, user_id: int, username: str | None = None) -> None:
-        """Ensure a user row exists; refresh the cached username on conflict."""
+        """Ensure a user row exists; refresh the cached username on conflict.
+
+        New rows get :data:`DEFAULT_USER_LANG` explicitly (not via the column
+        default) so the default language is honoured even on databases created
+        before it changed. An existing user's chosen ``lang`` is left untouched.
+        """
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "INSERT INTO users (user_id, username) VALUES (?, ?) "
+                "INSERT INTO users (user_id, username, lang) VALUES (?, ?, ?) "
                 "ON CONFLICT(user_id) DO UPDATE SET username = excluded.username",
-                (user_id, username),
+                (user_id, username, DEFAULT_USER_LANG),
             )
 
     def set_subscribed(self, user_id: int, subscribed: bool) -> None:

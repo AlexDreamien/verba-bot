@@ -27,6 +27,7 @@ def lang_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
+                InlineKeyboardButton(text="🇺🇦 Українська", callback_data=f"{LANG_CB_PREFIX}uk"),
                 InlineKeyboardButton(text="🇷🇺 Русский", callback_data=f"{LANG_CB_PREFIX}ru"),
                 InlineKeyboardButton(text="🇬🇧 English", callback_data=f"{LANG_CB_PREFIX}en"),
             ]
