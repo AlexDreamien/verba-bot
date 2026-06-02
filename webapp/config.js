@@ -7,4 +7,4 @@
 // For local development, copy this file's value to point at your tunnel
 // (cloudflared/ngrok) URL. This placeholder is committed; the real value is
 // environment-specific.
-window.VERBA_BACKEND_URL = "";
+window.VERBA_BACKEND_URL = "https://verba-bot.fly.dev";
