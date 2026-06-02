@@ -40,6 +40,8 @@
         win: "Победа! 🎉",
         lose: "Не угадали. Слово: {w}",
         already: "Сегодня уже сыграно",
+        notInList: "Нет такого слова в словаре",
+        switchWarn: "Сменить язык? Текущее слово будет засчитано как проигрыш.",
       },
     },
     uk: {
@@ -54,6 +56,8 @@
         win: "Перемога! 🎉",
         lose: "Не вгадано. Слово: {w}",
         already: "Сьогодні вже зіграно",
+        notInList: "Немає такого слова у словнику",
+        switchWarn: "Змінити мову? Поточне слово буде зараховане як програш.",
       },
     },
     en: {
@@ -68,6 +72,8 @@
         win: "You won! 🎉",
         lose: "Out of tries. The word was: {w}",
         already: "Already played today",
+        notInList: "Not in word list",
+        switchWarn: "Switch language? The current word will count as a loss.",
       },
     },
   };
@@ -167,7 +173,7 @@
     var tg = window.Telegram && window.Telegram.WebApp;
     var code = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code;
     if (LOCALES[code]) return code;
-    return "ru";
+    return "uk"; // default language
   }
 
   function init(lang) {
@@ -221,6 +227,10 @@
     render();
   }
 
+  function wordList() {
+    return (window.VERBA_WORDS && window.VERBA_WORDS[state.lang]) || [];
+  }
+
   function onEnter() {
     if (state.done) return;
     if (state.current.length < WORD_LEN) {
@@ -228,6 +238,12 @@
       return;
     }
     var guess = state.current;
+    // Reject words that are not in the dictionary: no attempt is spent and no
+    // tiles are revealed.
+    if (wordList().indexOf(guess) === -1) {
+      message(ui().notInList);
+      return;
+    }
     state.guesses.push(guess);
     state.current = "";
 
@@ -259,14 +275,46 @@
     render();
   }
 
-  function switchLang(lang) {
-    if (!LOCALES[lang] || lang === state.lang) return;
+  function commitLang(lang) {
     try {
       localStorage.setItem("verba_lang", lang);
     } catch (e) {
       /* ignore */
     }
     init(lang);
+  }
+
+  function abandonAsLoss() {
+    // Switching away mid-game forfeits the current word: count it as a loss
+    // and report it, so the daily stats stay consistent.
+    state.done = true;
+    state.won = false;
+    saveProgress();
+    window.logEvent("game_failed", { lang: state.lang, day: state.day });
+  }
+
+  function switchLang(lang) {
+    if (!LOCALES[lang] || lang === state.lang) return;
+    var inProgress = state.started && !state.done;
+    if (!inProgress) {
+      commitLang(lang);
+      return;
+    }
+    var warn = ui().switchWarn;
+    var proceed = function () {
+      abandonAsLoss();
+      commitLang(lang);
+    };
+    var tg = window.Telegram && window.Telegram.WebApp;
+    // Use Telegram's native confirm only inside a real Telegram session
+    // (initData present); in a plain browser its callback never fires.
+    if (tg && tg.initData && typeof tg.showConfirm === "function") {
+      tg.showConfirm(warn, function (ok) {
+        if (ok) proceed();
+      });
+      return;
+    }
+    if (window.confirm(warn)) proceed();
   }
 
   // --- rendering -----------------------------------------------------------
@@ -349,7 +397,7 @@
     rows.forEach(function (rowStr, idx) {
       var rowEl = div("krow");
       if (idx === rows.length - 1) {
-        rowEl.appendChild(keyButton(ENTER, "wide", onEnter));
+        rowEl.appendChild(keyButton(BACK, "wide", onBackspace));
       }
       rowStr.split("").forEach(function (ch) {
         var b = keyButton(ch.toUpperCase(), colors[ch] || "", function () {
@@ -358,7 +406,7 @@
         rowEl.appendChild(b);
       });
       if (idx === rows.length - 1) {
-        rowEl.appendChild(keyButton(BACK, "wide", onBackspace));
+        rowEl.appendChild(keyButton(ENTER, "wide", onEnter));
       }
       els.keyboard.appendChild(rowEl);
     });

@@ -1,5 +1,6 @@
 /*
- * Daily-word answer pools for the engine, one array per locale.
+ * Daily-word pools for the engine, one array per locale. Each list doubles as
+ * the accepted-guess dictionary: a guess is only accepted if it appears here.
  *
  * Original, hand-curated lists of common 5-letter **nouns** (lowercase, exactly
  * the locale alphabet — no adjectives, adverbs or verbs). The daily word is
@@ -25,7 +26,16 @@ window.VERBA_WORDS = {
     "веник", "бокал", "рюмка", "блюдо", "экран", "мышка", "завод", "склад",
     "ангар", "касса", "киоск", "музей", "театр", "арена", "сцена", "балет",
     "опера", "труба", "танец", "грипп", "шприц", "осень", "закат", "скала",
-    "тайга", "залив", "ручей",
+    "тайга", "залив", "ручей", "буква", "цифра", "число", "линия", "шарик",
+    "кубик", "бутон", "колос", "зерно", "пшено", "горох", "укроп", "редис",
+    "репка", "тыква", "арбуз", "слива", "вишня", "груша", "филин", "дятел",
+    "щегол", "чайка", "ягуар", "ласка", "выдра", "мидия", "аллея", "сквер",
+    "сосуд", "кухня", "забор", "терка", "кофта", "брюки", "шорты", "носки",
+    "берет", "кепка", "жилет", "кулон", "весло", "парус", "якорь", "канат",
+    "мачта", "тропа", "шоссе", "рельс", "шпала", "колея", "дождь", "буран",
+    "вьюга", "пурга", "песок", "глина", "валун", "ручка", "пенал", "кисть",
+    "мелок", "бубен", "гусли", "дудка", "белка", "лемур", "лодка", "баржа",
+    "катер", "паром", "ангел", "демон", "башня", "крыша",
   ],
   uk: [
     "слово", "місто", "вітер", "пісня", "ринок", "банан", "зебра", "лимон",
@@ -41,7 +51,15 @@ window.VERBA_WORDS = {
     "блюдо", "екран", "мишка", "завод", "склад", "ангар", "кіоск", "музей",
     "театр", "арена", "сцена", "балет", "опера", "труба", "шприц", "осінь",
     "захід", "скеля", "тайга", "потік", "пісок", "глина", "скарб", "гроші",
-    "товар", "лікар", "ліжко", "стіна", "вікно", "двері", "стеля",
+    "товар", "лікар", "ліжко", "стіна", "вікно", "двері", "стеля", "буква",
+    "цифра", "число", "лінія", "кубик", "бутон", "колос", "зерно", "пшоно",
+    "горох", "редис", "ріпка", "кавун", "слива", "вишня", "груша", "пугач",
+    "дятел", "чайка", "ягуар", "ласка", "видра", "мідія", "сквер", "стовп",
+    "кухня", "кофта", "штани", "шорти", "берет", "кепка", "жилет", "весло",
+    "парус", "канат", "щогла", "рейка", "шпала", "колія", "буран", "валун",
+    "ручка", "пенал", "бубон", "гуслі", "дудка", "білка", "лемур", "човен",
+    "баржа", "катер", "пором", "ангел", "демон", "башта", "брова", "голуб",
+    "орлан", "короп", "вівця",
   ],
   en: [
     "alarm", "apple", "beach", "bread", "brick", "chair", "chess", "clock",
@@ -59,5 +77,17 @@ window.VERBA_WORDS = {
     "phone", "radio", "watch", "frame", "chest", "purse", "scarf", "glove",
     "dress", "skirt", "crown", "jewel", "screw", "wheel", "motor", "plane",
     "truck", "wagon", "canoe", "yacht", "ferry", "kayak", "coast", "creek",
+    "goose", "skunk", "shrew", "stork", "crane", "quail", "egret", "heron",
+    "squid", "trout", "perch", "bream", "chimp", "prawn", "coral", "shell",
+    "pearl", "berry", "peach", "grain", "maize", "beans", "fudge", "jelly",
+    "gravy", "sauce", "roast", "cider", "latte", "mocha", "vodka", "lager",
+    "stout", "stool", "quilt", "sheet", "drill", "blade", "hinge", "chain",
+    "rivet", "nails", "liner", "barge", "sloop", "blimp", "moped", "jeans",
+    "boots", "socks", "shoes", "pants", "cliff", "ridge", "marsh", "swamp",
+    "grove", "delta", "oasis", "plain", "shore", "brook", "fjord", "woods",
+    "frost", "sleet", "vapor", "comet", "brain", "liver", "spine", "skull",
+    "tooth", "thumb", "wrist", "ankle", "elbow", "actor", "queen", "nurse",
+    "judge", "pilot", "clown", "giant", "baker", "torch", "lever", "valve",
+    "gauge", "cable",
   ],
 };
