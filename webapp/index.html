@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Word of the day</title>
+    <meta
+      name="viewport"
+      content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <meta name="description" content="Daily 5-letter word-guessing game (ru / uk / en)." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- Telegram Mini App SDK + deploy config + reporting layer -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="config.js"></script>
+    <!-- Game: word lists, then the engine (engine reads window.VERBA_WORDS) -->
+    <script src="words.js"></script>
+    <script src="engine.js"></script>
+    <!-- Reporting wraps the engine's global logEvent; loads after the engine -->
+    <script src="tg-report.js"></script>
+  </body>
+</html>
