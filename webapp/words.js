@@ -1,14 +1,13 @@
 /*
  * Daily-word answer pools for the engine, one array per locale.
  *
- * Original, hand-curated lists of common 5-letter words (lowercase, exactly the
- * locale alphabet). They are intentionally modest seed sets — the daily word is
- * picked by date modulo the list length, so a longer list simply means a longer
- * cycle before words repeat. Extend freely; tests/test_words.py validates that
- * every entry is exactly 5 letters of the locale's alphabet and unique.
+ * Original, hand-curated lists of common 5-letter **nouns** (lowercase, exactly
+ * the locale alphabet — no adjectives, adverbs or verbs). The daily word is
+ * picked by date modulo the list length, so a longer list means a longer cycle
+ * before words repeat. Extend freely; tests/test_words.py validates that every
+ * entry is exactly 5 letters of the locale's alphabet and unique.
  *
- * This file is original work (MIT). The game no longer vendors any third-party
- * code or word data.
+ * This file is original work (MIT). The game bundles no third-party word data.
  */
 window.VERBA_WORDS = {
   ru: [
@@ -19,7 +18,14 @@ window.VERBA_WORDS = {
     "доска", "весна", "сосна", "война", "ягода", "осина", "жираф", "панда",
     "метро", "океан", "берег", "туман", "гроза", "трава", "ствол", "дубок",
     "пчела", "комар", "рыбка", "акула", "голос", "слеза", "мечта", "разум",
-    "герой", "спина", "живот", "страх",
+    "герой", "спина", "живот", "страх", "кефир", "халва", "крупа", "тесто",
+    "пирог", "блины", "сырок", "перец", "судак", "сазан", "окунь", "стриж",
+    "сокол", "ворон", "индюк", "баран", "хомяк", "сурок", "бизон", "коала",
+    "камин", "диван", "комод", "штора", "замок", "свеча", "ведро", "метла",
+    "веник", "бокал", "рюмка", "блюдо", "экран", "мышка", "завод", "склад",
+    "ангар", "касса", "киоск", "музей", "театр", "арена", "сцена", "балет",
+    "опера", "труба", "танец", "грипп", "шприц", "осень", "закат", "скала",
+    "тайга", "залив", "ручей",
   ],
   uk: [
     "слово", "місто", "вітер", "пісня", "ринок", "банан", "зебра", "лимон",
@@ -29,15 +35,29 @@ window.VERBA_WORDS = {
     "осика", "жираф", "панда", "метро", "океан", "берег", "туман", "гроза",
     "трава", "комар", "рибка", "акула", "голос", "розум", "герой", "спина",
     "живіт", "страх", "зірка", "сонце", "хмара", "річка", "земля", "книга",
+    "кефір", "халва", "крупа", "тісто", "пиріг", "судак", "сазан", "окунь",
+    "сокіл", "ворон", "індик", "бабак", "бізон", "коала", "камін", "диван",
+    "комод", "штора", "замок", "свіча", "відро", "мітла", "віник", "келих",
+    "блюдо", "екран", "мишка", "завод", "склад", "ангар", "кіоск", "музей",
+    "театр", "арена", "сцена", "балет", "опера", "труба", "шприц", "осінь",
+    "захід", "скеля", "тайга", "потік", "пісок", "глина", "скарб", "гроші",
+    "товар", "лікар", "ліжко", "стіна", "вікно", "двері", "стеля",
   ],
   en: [
-    "about", "above", "alarm", "apple", "beach", "bread", "brick", "brush",
-    "chair", "chess", "clock", "cloud", "dance", "dream", "eagle", "earth",
-    "fairy", "field", "flame", "flute", "ghost", "grape", "green", "heart",
-    "honey", "house", "juice", "knife", "lemon", "light", "money", "mouse",
-    "music", "night", "ocean", "paper", "peace", "piano", "pizza", "plant",
-    "river", "robot", "salad", "sheep", "shirt", "smile", "snake", "stone",
-    "storm", "sugar", "sunny", "table", "tiger", "train", "water", "whale",
-    "wheat", "world", "zebra",
+    "alarm", "apple", "beach", "bread", "brick", "chair", "chess", "clock",
+    "cloud", "eagle", "earth", "fairy", "field", "flame", "flute", "ghost",
+    "grape", "heart", "honey", "house", "juice", "knife", "lemon", "money",
+    "mouse", "music", "night", "ocean", "paper", "peace", "piano", "pizza",
+    "river", "robot", "salad", "sheep", "shirt", "snake", "stone", "storm",
+    "sugar", "table", "tiger", "water", "whale", "wheat", "world", "zebra",
+    "horse", "camel", "koala", "panda", "otter", "moose", "shark", "robin",
+    "raven", "finch", "snail", "llama", "bison", "hyena", "lemur", "gecko",
+    "viper", "sloth", "rhino", "hippo", "puppy", "bunny", "candy", "cocoa",
+    "mango", "melon", "olive", "onion", "toast", "donut", "syrup", "cream",
+    "dough", "broth", "curry", "lunch", "steak", "bacon", "pasta", "fruit",
+    "couch", "bench", "shelf", "spoon", "plate", "glass", "towel", "broom",
+    "phone", "radio", "watch", "frame", "chest", "purse", "scarf", "glove",
+    "dress", "skirt", "crown", "jewel", "screw", "wheel", "motor", "plane",
+    "truck", "wagon", "canoe", "yacht", "ferry", "kayak", "coast", "creek",
   ],
 };
