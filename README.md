@@ -122,9 +122,24 @@ publishes `webapp/`. Enable Pages (Settings → Pages → *GitHub Actions*). The
 resulting URL is your `WEBAPP_URL` and your @BotFather Mini App URL. Edit
 `webapp/config.js` so `VERBA_BACKEND_URL` points at your collector's HTTPS host.
 
-**Bot + collector → Docker.** The collector needs to be reachable over HTTPS, so
-run it behind a reverse proxy that terminates TLS (Caddy/nginx) and forwards to
-port `8080`:
+**Bot + collector → Fly.io (recommended).** Fly builds the `Dockerfile`, gives a
+free HTTPS host at `https://<app>.fly.dev`, and provides a persistent volume for
+SQLite. `fly.toml` keeps one machine always running (the bot polls continuously)
+and health-checks `/healthz`.
+
+```bash
+flyctl auth signup                       # or: flyctl auth login
+flyctl apps create verba-bot             # pick a globally-unique name
+flyctl volumes create verba_data --region waw --size 1
+flyctl secrets set BOT_TOKEN=... ADMIN_IDS=123,456
+flyctl deploy
+```
+
+Then set `VERBA_BACKEND_URL = "https://<app>.fly.dev"` in `webapp/config.js`,
+commit (Pages redeploys), and check `https://<app>.fly.dev/healthz`.
+
+**Bot + collector → your own Docker host.** Alternatively run the container
+behind a reverse proxy that terminates TLS (Caddy/nginx) → port `8080`:
 
 ```bash
 cp .env.example .env        # set BOT_TOKEN, ADMIN_IDS, WEBAPP_URL
