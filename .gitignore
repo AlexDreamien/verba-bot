@@ -25,6 +25,9 @@ ENV/
 # Webapp local config (deploy-specific backend URL)
 webapp/config.local.js
 
+# Cached word-list sources for tools/build_words.py (re-downloaded on demand)
+tools/_cache/
+
 # IDE
 .idea/
 .vscode/
