@@ -9,7 +9,7 @@
 #   flyctl secrets set BOT_TOKEN=... ADMIN_IDS=123,456
 
 app = "verba-bot"
-primary_region = "waw"   # Warsaw (close to Kyiv); change if you prefer
+primary_region = "fra"   # Frankfurt (closest large EU region); change if you prefer
 
 [build]
 
