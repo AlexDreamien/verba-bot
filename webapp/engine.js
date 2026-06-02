@@ -100,7 +100,8 @@
   }
 
   function wordForToday(lang, ymd) {
-    var list = (window.VERBA_WORDS && window.VERBA_WORDS[lang]) || [];
+    var pool = (window.VERBA_WORDS && window.VERBA_WORDS[lang]) || {};
+    var list = pool.answers || [];
     if (!list.length) return "";
     var n = dayNumber(ymd);
     return list[((n % list.length) + list.length) % list.length];
@@ -190,6 +191,7 @@
       won: saved.won || false,
       current: "",
       started: saved.guesses && saved.guesses.length > 0,
+      accepted: new Set(((window.VERBA_WORDS[lang] || {}).accepted) || []),
     };
     render();
     if (state.done) {
@@ -227,10 +229,6 @@
     render();
   }
 
-  function wordList() {
-    return (window.VERBA_WORDS && window.VERBA_WORDS[state.lang]) || [];
-  }
-
   function onEnter() {
     if (state.done) return;
     if (state.current.length < WORD_LEN) {
@@ -238,9 +236,9 @@
       return;
     }
     var guess = state.current;
-    // Reject words that are not in the dictionary: no attempt is spent and no
-    // tiles are revealed.
-    if (wordList().indexOf(guess) === -1) {
+    // Reject words that are not in the accepted dictionary: no attempt is spent
+    // and no tiles are revealed.
+    if (!state.accepted.has(guess)) {
       message(ui().notInList);
       return;
     }

@@ -1,8 +1,9 @@
-"""Validate the engine's word lists in webapp/words.js.
+"""Validate the engine's word pools in webapp/words.js.
 
-The lists are authored by hand, so this guards against typos: every entry must
-be exactly 5 letters drawn from its locale alphabet, and unique. It can't verify
-that a word is "real", but it catches wrong-length / wrong-charset mistakes in CI.
+Each locale has two arrays: ``answers`` (curated daily-word pool) and
+``accepted`` (large guess dictionary). Both must contain only unique 5-letter
+words of the locale alphabet, every answer must also be accepted, and the
+accepted dictionary must be large enough to make the game playable.
 """
 
 from __future__ import annotations
@@ -19,35 +20,56 @@ ALPHABETS = {
     "uk": set("абвгґдеєжзиіїйклмнопрстуфхцчшщьюя"),
     "en": set("abcdefghijklmnopqrstuvwxyz"),
 }
+LANGS = ("ru", "uk", "en")
+POOLS = ("answers", "accepted")
 
 
-def words_for(lang: str) -> list[str]:
+def _block(lang: str) -> str:
     text = WORDS_JS.read_text(encoding="utf-8")
-    match = re.search(rf"{lang}\s*:\s*\[(.*?)\]", text, re.S)
-    assert match, f"locale {lang} not found in words.js"
-    return re.findall(r'"([^"]+)"', match.group(1))
+    keys = list(re.finditer(r"^  (ru|uk|en):", text, re.M))
+    for i, m in enumerate(keys):
+        if m.group(1) == lang:
+            end = keys[i + 1].start() if i + 1 < len(keys) else len(text)
+            return text[m.end() : end]
+    return ""
 
 
-@pytest.mark.parametrize("lang", ["ru", "uk", "en"])
-def test_word_list_present(lang):
-    assert len(words_for(lang)) >= 20
+def words(lang: str, pool: str) -> list[str]:
+    m = re.search(rf"{pool}\s*:\s*\[(.*?)\]", _block(lang), re.S)
+    assert m, f"{lang}.{pool} not found"
+    return re.findall(r'"([^"]+)"', m.group(1))
 
 
-@pytest.mark.parametrize("lang", ["ru", "uk", "en"])
-def test_words_are_five_letters(lang):
-    bad = [w for w in words_for(lang) if len(w) != 5]
-    assert bad == [], f"{lang}: not 5 letters: {bad}"
+@pytest.mark.parametrize("lang", LANGS)
+@pytest.mark.parametrize("pool", POOLS)
+def test_words_are_five_letters(lang, pool):
+    bad = [w for w in words(lang, pool) if len(w) != 5]
+    assert bad == [], f"{lang}.{pool}: not 5 letters: {bad[:10]}"
 
 
-@pytest.mark.parametrize("lang", ["ru", "uk", "en"])
-def test_words_in_alphabet(lang):
+@pytest.mark.parametrize("lang", LANGS)
+@pytest.mark.parametrize("pool", POOLS)
+def test_words_in_alphabet(lang, pool):
     alphabet = ALPHABETS[lang]
-    bad = [w for w in words_for(lang) if set(w) - alphabet]
-    assert bad == [], f"{lang}: out-of-alphabet chars: {bad}"
+    bad = [w for w in words(lang, pool) if set(w) - alphabet]
+    assert bad == [], f"{lang}.{pool}: out-of-alphabet chars: {bad[:10]}"
 
 
-@pytest.mark.parametrize("lang", ["ru", "uk", "en"])
-def test_words_unique(lang):
-    words = words_for(lang)
-    dupes = sorted({w for w in words if words.count(w) > 1})
-    assert dupes == [], f"{lang}: duplicates: {dupes}"
+@pytest.mark.parametrize("lang", LANGS)
+@pytest.mark.parametrize("pool", POOLS)
+def test_words_unique(lang, pool):
+    ws = words(lang, pool)
+    dupes = sorted({w for w in ws if ws.count(w) > 1})
+    assert dupes == [], f"{lang}.{pool}: duplicates: {dupes[:10]}"
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_answers_subset_of_accepted(lang):
+    missing = set(words(lang, "answers")) - set(words(lang, "accepted"))
+    assert missing == set(), f"{lang}: answers missing from accepted: {sorted(missing)[:10]}"
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_pools_are_substantial(lang):
+    assert len(words(lang, "answers")) >= 100
+    assert len(words(lang, "accepted")) >= 1000
