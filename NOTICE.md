@@ -16,10 +16,10 @@ original licenses:
 | Locale | Source | License |
 |---|---|---|
 | en | [dwyl/english-words](https://github.com/dwyl/english-words) (`words_alpha.txt`) | The Unlicense (public domain) |
-| ru | [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (OpenSubtitles 2018, `ru_50k`) | CC BY-SA 4.0 |
-| uk | [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (OpenSubtitles 2018, `uk_50k`) | CC BY-SA 4.0 |
+| ru | [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (OpenSubtitles 2018, `ru_full`) | CC BY-SA 4.0 |
+| uk | [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (`uk_full`) + [LibreOffice/dictionaries](https://github.com/LibreOffice/dictionaries) `uk_UA` (brown-uk / VESUM hunspell) | CC BY-SA 4.0 |
 
 The ru/uk dictionaries are filtered (5-letter words only) derivatives of the
-FrequencyWords data and are therefore made available under **CC BY-SA 4.0**, with
-attribution to Hermit Dave / the OpenSubtitles corpus. To regenerate from source,
-run `python tools/build_words.py`.
+sources above and are therefore made available under **CC BY-SA 4.0**, with
+attribution to Hermit Dave / the OpenSubtitles corpus and the brown-uk / VESUM
+project. To regenerate from source, run `python tools/build_words.py`.

@@ -9,6 +9,7 @@ accepted dictionary must be large enough to make the game playable.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -58,8 +59,7 @@ def test_words_in_alphabet(lang, pool):
 @pytest.mark.parametrize("lang", LANGS)
 @pytest.mark.parametrize("pool", POOLS)
 def test_words_unique(lang, pool):
-    ws = words(lang, pool)
-    dupes = sorted({w for w in ws if ws.count(w) > 1})
+    dupes = sorted(w for w, c in Counter(words(lang, pool)).items() if c > 1)
     assert dupes == [], f"{lang}.{pool}: duplicates: {dupes[:10]}"
 
 
@@ -67,6 +67,13 @@ def test_words_unique(lang, pool):
 def test_answers_subset_of_accepted(lang):
     missing = set(words(lang, "answers")) - set(words(lang, "accepted"))
     assert missing == set(), f"{lang}: answers missing from accepted: {sorted(missing)[:10]}"
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_answers_have_distinct_letters(lang):
+    # The daily word must have five distinct letters (no repeats).
+    bad = [w for w in words(lang, "answers") if len(set(w)) != 5]
+    assert bad == [], f"{lang}: answers with repeated letters: {bad[:10]}"
 
 
 @pytest.mark.parametrize("lang", LANGS)
