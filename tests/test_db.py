@@ -18,7 +18,7 @@ def test_add_and_get_user(db):
     assert user is not None
     assert user.username == "alice"
     assert user.subscribed is True  # default
-    assert user.lang == "ru"
+    assert user.lang == "uk"
 
 
 def test_add_user_refreshes_username(db):
