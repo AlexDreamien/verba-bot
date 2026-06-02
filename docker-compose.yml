@@ -1,0 +1,16 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    # Persist the SQLite database outside the container.
+    volumes:
+      - verba-data:/data
+    environment:
+      DB_PATH: /data/verba.db
+    # Expose the result-collector to the host / reverse proxy.
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+
+volumes:
+  verba-data:
