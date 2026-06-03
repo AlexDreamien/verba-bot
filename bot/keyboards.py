@@ -6,9 +6,46 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from bot.i18n import t
 
-__all__ = ["LANG_CB_PREFIX", "lang_keyboard", "play_keyboard", "play_link_keyboard"]
+__all__ = [
+    "GROUP_LANG_CB_PREFIX",
+    "LANG_CB_PREFIX",
+    "MENU_CB_PREFIX",
+    "lang_keyboard",
+    "menu_keyboard",
+    "play_keyboard",
+    "play_link_keyboard",
+]
 
 LANG_CB_PREFIX = "lang:"
+GROUP_LANG_CB_PREFIX = "glang:"
+MENU_CB_PREFIX = "menu:"
+
+
+def menu_keyboard(lang: str) -> InlineKeyboardMarkup:
+    """Quick-action menu shown on /menu, /help, or when the bot is mentioned."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t("play_button", lang), callback_data=f"{MENU_CB_PREFIX}play"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=t("btn_stats", lang), callback_data=f"{MENU_CB_PREFIX}stats"
+                ),
+                InlineKeyboardButton(text=t("btn_me", lang), callback_data=f"{MENU_CB_PREFIX}me"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=t("btn_lang", lang), callback_data=f"{MENU_CB_PREFIX}lang"
+                ),
+                InlineKeyboardButton(
+                    text=t("btn_help", lang), callback_data=f"{MENU_CB_PREFIX}help"
+                ),
+            ],
+        ]
+    )
 
 
 def play_keyboard(webapp_url: str, lang: str) -> InlineKeyboardMarkup:
@@ -37,13 +74,16 @@ def play_link_keyboard(bot_username: str, lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[button]])
 
 
-def lang_keyboard() -> InlineKeyboardMarkup:
+def lang_keyboard(scope: str = "user") -> InlineKeyboardMarkup:
+    """Language picker. ``scope="group"`` sets the group's language instead of
+    the user's (different callback prefix)."""
+    prefix = GROUP_LANG_CB_PREFIX if scope == "group" else LANG_CB_PREFIX
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🇺🇦 Українська", callback_data=f"{LANG_CB_PREFIX}uk"),
-                InlineKeyboardButton(text="🇷🇺 Русский", callback_data=f"{LANG_CB_PREFIX}ru"),
-                InlineKeyboardButton(text="🇬🇧 English", callback_data=f"{LANG_CB_PREFIX}en"),
+                InlineKeyboardButton(text="🇺🇦 Українська", callback_data=f"{prefix}uk"),
+                InlineKeyboardButton(text="🇷🇺 Русский", callback_data=f"{prefix}ru"),
+                InlineKeyboardButton(text="🇬🇧 English", callback_data=f"{prefix}en"),
             ]
         ]
     )

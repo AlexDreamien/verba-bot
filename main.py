@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
 from aiohttp import web
 from dotenv import load_dotenv
 
@@ -27,6 +28,20 @@ from bot.stats import compute_daily, format_daily
 from bot.web import create_app
 
 log = logging.getLogger("verba")
+
+# Commands shown in Telegram's "/" menu (descriptions are localized).
+_MENU_COMMANDS = ["play", "stats", "me", "lang", "help", "stop"]
+
+
+async def _set_commands(bot: Bot) -> None:
+    """Register the slash-command hints (default = English, plus uk/ru)."""
+
+    def cmds(lang: str) -> list[BotCommand]:
+        return [BotCommand(command=c, description=t(f"cmd_{c}", lang)) for c in _MENU_COMMANDS]
+
+    await bot.set_my_commands(cmds("en"))  # default scope
+    await bot.set_my_commands(cmds("uk"), language_code="uk")
+    await bot.set_my_commands(cmds("ru"), language_code="ru")
 
 
 def configure_logging() -> None:
@@ -78,6 +93,7 @@ async def main() -> None:
 
     me = await bot.me()
     dp["bot_username"] = me.username
+    await _set_commands(bot)
     log.info("Bot @%s ready", me.username)
 
     scheduler = VerbaScheduler(config.tz)
@@ -97,7 +113,7 @@ async def main() -> None:
     scheduler.add_close_day(config.close_day_at, close_day_job)
     scheduler.start()
 
-    runner = await _run_web(create_app(db, config), config.web_host, config.web_port)
+    runner = await _run_web(create_app(db, config, bot), config.web_host, config.web_port)
 
     try:
         await dp.start_polling(bot)
