@@ -293,7 +293,10 @@
 
   function switchLang(lang) {
     if (!LOCALES[lang] || lang === state.lang) return;
-    var inProgress = state.started && !state.done;
+    // Only an unfinished game with at least one submitted guess is forfeited.
+    // Just typing letters (no guess yet), or an already-finished game, switches
+    // freely without a loss.
+    var inProgress = state.guesses.length > 0 && !state.done;
     if (!inProgress) {
       commitLang(lang);
       return;

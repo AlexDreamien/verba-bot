@@ -171,5 +171,7 @@ body {
 }
 
 .key.absent {
-  background: var(--absent);
+  /* Clearly greyed-out: darker than an unused key, with dimmed text. */
+  background: #201b2b;
+  color: #5a5468;
 }
