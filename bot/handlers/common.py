@@ -8,6 +8,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
+from bot.config import Config
 from bot.db import VerbaDB
 from bot.i18n import DEFAULT_LANG, LANGS, t
 from bot.keyboards import (
@@ -16,7 +17,7 @@ from bot.keyboards import (
     lang_keyboard,
     menu_keyboard,
 )
-from bot.stats import display_name
+from bot.stats import display_name, format_competition
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -82,6 +83,72 @@ async def cmd_register(message: Message, db: VerbaDB) -> None:
         message.from_user.first_name, message.from_user.username, message.from_user.id
     )
     await message.answer(t("register_done" if newly else "register_already", lang, name=name))
+
+
+@router.message(Command("unregister"))
+async def cmd_unregister(message: Message, db: VerbaDB) -> None:
+    if message.from_user is None:
+        return
+    if message.chat.type not in GROUP_TYPES:
+        await message.answer(t("group_only", user_lang(db, message.from_user.id)))
+        return
+    removed = db.unregister(message.chat.id, message.from_user.id)
+    lang = db.get_chat_lang(message.chat.id)
+    name = display_name(
+        message.from_user.first_name, message.from_user.username, message.from_user.id
+    )
+    await message.answer(t("unregister_done" if removed else "unregister_not", lang, name=name))
+
+
+async def _is_group_admin(message: Message, config: Config) -> bool:
+    """True if the sender is a chat admin/creator (or a configured global admin)."""
+    if message.from_user is None:
+        return False
+    if message.from_user.id in config.admin_ids:
+        return True
+    try:
+        member = await message.bot.get_chat_member(message.chat.id, message.from_user.id)
+    except Exception:  # noqa: BLE001 — treat any lookup failure as "not an admin"
+        return False
+    return getattr(member, "status", "") in ("administrator", "creator")
+
+
+@router.message(Command("startseason"))
+async def cmd_startseason(message: Message, db: VerbaDB, config: Config) -> None:
+    if message.from_user is None:
+        return
+    lang = effective_lang(db, message)
+    if message.chat.type not in GROUP_TYPES:
+        await message.answer(t("group_only", lang))
+        return
+    if not await _is_group_admin(message, config):
+        await message.answer(t("season_not_admin", lang))
+        return
+    new_season = db.start_season(message.chat.id)
+    if new_season is None:
+        current, _ = db.get_season(message.chat.id)
+        await message.answer(t("season_already", lang, n=current))
+    else:
+        await message.answer(t("season_started", lang, n=new_season))
+
+
+@router.message(Command("finishseason"))
+async def cmd_finishseason(message: Message, db: VerbaDB, config: Config) -> None:
+    if message.from_user is None:
+        return
+    lang = effective_lang(db, message)
+    if message.chat.type not in GROUP_TYPES:
+        await message.answer(t("group_only", lang))
+        return
+    if not await _is_group_admin(message, config):
+        await message.answer(t("season_not_admin", lang))
+        return
+    finished = db.finish_season(message.chat.id)
+    if finished is None:
+        await message.answer(t("season_none", lang))
+        return
+    board = format_competition(db.competition_standings(message.chat.id), finished, lang)
+    await message.answer(t("season_finished", lang, n=finished) + "\n\n" + board)
 
 
 @router.message(Command("help"))

@@ -38,8 +38,10 @@ def _today(config: Config) -> str:
 
 async def _send_stats(bot, chat, db: VerbaDB, config: Config, lang: str) -> None:
     if chat.type in GROUP_TYPES:
-        # In a group, /stats is the competition leaderboard of registered players.
-        await bot.send_message(chat.id, format_competition(db.competition_standings(chat.id), lang))
+        # In a group, /stats is the competition leaderboard for the current season.
+        season, _ = db.get_season(chat.id)
+        standings = db.competition_standings(chat.id)
+        await bot.send_message(chat.id, format_competition(standings, season, lang))
     else:
         day = _today(config)
         await bot.send_message(chat.id, format_daily(compute_daily(db.daily_rows(day)), day, lang))
