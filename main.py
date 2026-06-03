@@ -76,6 +76,10 @@ async def main() -> None:
     dp = Dispatcher()
     setup_handlers(dp, db, config)
 
+    me = await bot.me()
+    dp["bot_username"] = me.username
+    log.info("Bot @%s ready", me.username)
+
     scheduler = VerbaScheduler(config.tz)
 
     async def broadcast_job() -> None:

@@ -15,6 +15,7 @@ from bot.daily import day_key
 from bot.db import VerbaDB
 from bot.handlers.common import user_lang
 from bot.i18n import t
+from bot.keyboards import play_link_keyboard
 from bot.stats import compute_daily, compute_user, format_daily, format_user
 
 log = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ def _today(config: Config) -> str:
 
 
 @router.message(Command("play"))
-async def cmd_play(message: Message, db: VerbaDB, config: Config) -> None:
+async def cmd_play(message: Message, db: VerbaDB, config: Config, bot_username: str) -> None:
     if message.from_user is None:
         return
     lang = user_lang(db, message.from_user.id)
@@ -34,7 +35,14 @@ async def cmd_play(message: Message, db: VerbaDB, config: Config) -> None:
         await message.answer(t("no_webapp", lang))
         return
     db.add_user(message.from_user.id, message.from_user.username)
-    await send_play(message.bot, message.chat.id, config, lang)
+    if message.chat.type == "private":
+        await send_play(message.bot, message.chat.id, config, lang)
+    else:
+        # web_app buttons are private-chat only; point group users to the bot DM.
+        await message.answer(
+            t("play_in_private", lang),
+            reply_markup=play_link_keyboard(bot_username, lang),
+        )
 
 
 @router.message(Command("broadcast"))
