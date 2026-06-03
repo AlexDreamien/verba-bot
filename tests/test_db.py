@@ -108,6 +108,37 @@ def test_close_day_skips_users_who_played(db):
     assert db.get_result(1, day, "") is None
 
 
+def test_record_result_returns_newly_finalized(db):
+    assert db.record_result(1, "1.05.2026", "ru", "won", attempts=3) is True
+    # already terminal -> not newly finalized (no double announce)
+    assert db.record_result(1, "1.05.2026", "ru", "lost", attempts=6) is False
+    assert db.record_result(2, "1.05.2026", "ru", "lost", attempts=6) is True
+
+
+def test_membership_and_user_groups(db):
+    db.track_membership(-100, 1, "alice", "Alice")
+    db.track_membership(-100, 2, None, "Bob")
+    db.track_membership(-200, 1, "alice", "Alice")
+    assert {m.user_id for m in db.group_members(-100)} == {1, 2}
+    assert set(db.user_groups(1)) == {-100, -200}
+    assert db.user_groups(2) == [-100]
+
+
+def test_chat_lang_default_and_set(db):
+    assert db.get_chat_lang(-100) == "uk"  # default
+    db.set_chat_lang(-100, "en")
+    assert db.get_chat_lang(-100) == "en"
+
+
+def test_daily_rows_for_users(db):
+    db.record_result(1, "1.05.2026", "ru", "won", attempts=2)
+    db.record_result(2, "1.05.2026", "ru", "lost", attempts=6)
+    db.record_result(3, "1.05.2026", "ru", "won", attempts=4)
+    rows = db.daily_rows_for_users("1.05.2026", [1, 2])
+    assert {row.user_id for row in rows} == {1, 2}
+    assert db.daily_rows_for_users("1.05.2026", []) == []
+
+
 def test_user_history(db):
     db.record_result(1, "1.05.2026", "ru", "won", attempts=3)
     db.record_result(1, "2.05.2026", "ru", "lost", attempts=6)

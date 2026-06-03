@@ -14,7 +14,7 @@ APScheduler 3 + SQLite. See `README.md`.
 pip install -r requirements-dev.txt
 cp .env.example .env            # set BOT_TOKEN, ADMIN_IDS, WEBAPP_URL
 python main.py
-pytest                          # 63 tests
+pytest                          # 86 tests
 ruff check . && black --check .
 ```
 
@@ -58,6 +58,19 @@ the aiohttp collector + the scheduler in one asyncio process.
 - **`close_day` / the broadcast run in the configured `TZ`** (Kyiv by default),
   while datetimes are computed from `datetime.now(UTC)` then converted.
 - **Callback/message handlers guard `from_user is None`** before using `.id`.
+- **`web_app` inline buttons are private-chat only.** In groups `/play` sends a
+  URL button to the bot's DM instead (`play_link_keyboard`); never send a
+  `web_app` button to a group (Telegram 400s and the message silently fails).
+- **Group membership is best-effort.** `MembershipMiddleware` records senders the
+  bot sees in groups; a normal bot can't enumerate members (full coverage needs
+  group privacy disabled). Group stats / win announcements use this table.
+- **Win announcements fire once.** `db.record_result` returns `True` only when it
+  newly finalizes a game; `web._announce_win` keys off that so a retried POST
+  doesn't re-announce. The announcement never includes the word.
+- **`game.router` is included LAST** because its catch-all `F.text` handler
+  (mentions → menu) would otherwise shadow command handlers in other routers.
+  Menu callbacks use `query.from_user` (the requester), not the message author
+  (the bot).
 
 ## Out of scope (deliberate)
 

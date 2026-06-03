@@ -2,18 +2,43 @@
 
 from __future__ import annotations
 
-from bot.db import Result
+from bot.db import Member, Result
 from bot.stats import (
     compute_daily,
     compute_user,
+    display_name,
     format_daily,
     format_duration,
+    format_group_daily,
     format_user,
 )
 
 
 def r(user_id, day, status, attempts=None, elapsed_ms=None, lang=""):
     return Result(user_id, day, status, attempts, elapsed_ms, lang)
+
+
+def test_display_name_priority():
+    assert display_name("Alice", "al", 1) == "Alice"
+    assert display_name(None, "al", 1) == "@al"
+    assert display_name(None, None, 7) == "#7"
+
+
+def test_format_group_daily():
+    members = [Member(1, "alice", "Alice"), Member(2, None, "Bob"), Member(3, None, None)]
+    rows = [
+        r(1, "1.05.2026", "won", attempts=3, lang="ru"),
+        r(2, "1.05.2026", "lost", attempts=6, lang="uk"),
+    ]
+    text = format_group_daily(members, rows, "1.05.2026", "en")
+    assert "✅ Alice — 3/6" in text
+    assert "❌ Bob" in text
+    assert "💤 #3" in text  # no name, didn't play
+    assert "of 3" in text
+
+
+def test_format_group_daily_empty():
+    assert "No members" in format_group_daily([], [], "1.05.2026", "en")
 
 
 def test_compute_daily_counts_and_averages():

@@ -66,8 +66,26 @@ per-day `not_played` for subscribers who didn't play.
 | `/stats` | everyone | global summary for today |
 | `/me` | everyone | personal history, win rate, streaks |
 | `/stop` | everyone | unsubscribe |
-| `/lang` | everyone | switch bot language (RU/EN) |
+| `/lang` | everyone | switch language (user's in DM, the group's in a group) |
+| `/menu`, `/help` | everyone | quick-action button menu |
 | `/broadcast` | admins | send the game to all subscribers now |
+
+Commands appear in Telegram's `/` hint menu (localized via `setMyCommands`), and
+the bot replies with a button menu on `/menu`, `/help`, or when mentioned in a group.
+
+## Groups
+
+Add the bot to a group and:
+
+- `/stats` shows a **per-member** breakdown with names (✅/❌/⏳/💤), not just totals.
+- when a member guesses the day's word, the bot posts **“{name} guessed today's
+  word!”** to that member's groups — **without revealing the word**.
+
+A normal bot can't list group members, so the bot only knows members it has
+**seen interact** (commands, mentions, or — if you disable group privacy in
+@BotFather, `/setprivacy` → *Disable* — every message). The Mini App is opened
+from the private chat (group `web_app` buttons aren't allowed), and a win is
+linked back to the player's groups via that membership table.
 
 ## Architecture
 
