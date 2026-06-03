@@ -30,7 +30,7 @@ from bot.web import create_app
 log = logging.getLogger("verba")
 
 # Commands shown in Telegram's "/" menu (descriptions are localized).
-_MENU_COMMANDS = ["play", "stats", "me", "lang", "help", "stop"]
+_MENU_COMMANDS = ["play", "register", "stats", "me", "lang", "help", "stop"]
 
 
 async def _set_commands(bot: Bot) -> None:
@@ -105,6 +105,7 @@ async def main() -> None:
     async def close_day_job() -> None:
         day = day_key(datetime.now(UTC), config.tz)
         db.close_day(day, db.subscriber_ids())
+        db.close_competition(day)  # unplayed/unfinished rounds -> skips for competitors
         log.info("Closed day %s", day)
         await _post_summary(bot, db, config, day)
 

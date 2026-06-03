@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from bot.db import Member, Result
+from bot.db import Result, Standing
 from bot.stats import (
     compute_daily,
     compute_user,
     display_name,
+    format_competition,
     format_daily,
     format_duration,
-    format_group_daily,
     format_user,
 )
 
@@ -24,21 +24,21 @@ def test_display_name_priority():
     assert display_name(None, None, 7) == "#7"
 
 
-def test_format_group_daily():
-    members = [Member(1, "alice", "Alice"), Member(2, None, "Bob"), Member(3, None, None)]
-    rows = [
-        r(1, "1.05.2026", "won", attempts=3, lang="ru"),
-        r(2, "1.05.2026", "lost", attempts=6, lang="uk"),
+def test_format_competition_ranks_and_medals():
+    standings = [
+        Standing(1, "alice", "Alice", score=7, wins=3, losses=1, skips=2),
+        Standing(2, None, "Bob", score=4, wins=2, losses=0, skips=4),
+        Standing(3, None, None, score=0, wins=0, losses=0, skips=0),
     ]
-    text = format_group_daily(members, rows, "1.05.2026", "en")
-    assert "✅ Alice — 3/6" in text
-    assert "❌ Bob" in text
-    assert "💤 #3" in text  # no name, didn't play
-    assert "of 3" in text
+    text = format_competition(standings, "en")
+    assert "🥇 Alice — 7 🏆 (✅3 ❌1 💤2)" in text
+    assert "🥈 Bob" in text
+    assert "🥉 #3" in text  # no name -> #id, third place medal
+    assert "leaderboard" in text.lower()
 
 
-def test_format_group_daily_empty():
-    assert "No members" in format_group_daily([], [], "1.05.2026", "en")
+def test_format_competition_empty():
+    assert "register" in format_competition([], "en").lower()
 
 
 def test_compute_daily_counts_and_averages():

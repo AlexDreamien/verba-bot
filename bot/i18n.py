@@ -22,8 +22,9 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Привіт! Це бот щоденної гри «Verba» — вгадай слово з 5 літер за 6 спроб.\n\n"
             "Ти підписаний на щоденну розсилку. Команди:\n"
             "/play — отримати посилання на сьогоднішню гру\n"
-            "/stats — загальна статистика за день\n"
+            "/stats — статистика (у групі — заліковий рейтинг)\n"
             "/me — твоя особиста статистика\n"
+            "/register — взяти участь у заліку групи (напиши в групі)\n"
             "/stop — відписатися\n"
             "/lang — змінити мову"
         ),
@@ -69,12 +70,20 @@ MESSAGES: dict[str, dict[str, str]] = {
         "btn_me": "👤 Я",
         "btn_lang": "🌐 Мова",
         "btn_help": "❓ Довідка",
-        "group_stats_title": "📊 Гравці групи за {day}",
-        "group_stats_empty": "Поки ніхто з учасників не грав. Напишіть боту в групі, щоб потрапити у статистику.",
-        "group_stats_summary": "Разом: ✅ {won}  ❌ {lost}  із {total}",
-        "group_win": "🎉 {name} вгадав(-ла) слово дня {flag} за {attempts}/6! Саме слово — таємниця 🤫",
+        "comp_title": "🏆 Заліковий рейтинг групи",
+        "comp_empty": "Поки ніхто не зареєструвався. Напишіть /register у групі, щоб брати участь у заліку.",
+        "comp_row": "{rank} {name} — {score} 🏆 (✅{wins} ❌{losses} 💤{skips})",
+        "comp_legend": (
+            "🏆 очки · ✅ вгадано · ❌ не вгадано · 💤 пропущено\n"
+            "Перше вгадане слово дня = 3 очки, інакше = 1."
+        ),
+        "register_done": "✅ {name}, тебе зараховано до заліку цієї групи! Тепер твої перемоги тут рахуються.",
+        "register_already": "{name}, ти вже береш участь у заліку цієї групи.",
+        "register_in_group": "Команда /register працює лише в груповому чаті. Додай мене в групу й напиши /register там.",
+        "group_win": "🎉 {name} перш(ий/а) вгадав(-ла) слово дня {flag} за {attempts}/6! +3 очки 🏆 Саме слово — таємниця 🤫",
         "cmd_play": "Зіграти в сьогоднішню гру",
-        "cmd_stats": "Статистика за день",
+        "cmd_register": "Взяти участь у заліку групи",
+        "cmd_stats": "Статистика / рейтинг групи",
         "cmd_me": "Моя статистика",
         "cmd_lang": "Змінити мову",
         "cmd_help": "Команди та довідка",
@@ -88,8 +97,9 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Привет! Это бот ежедневной игры «Verba» — угадай слово из 5 букв за 6 попыток.\n\n"
             "Ты подписан на ежедневную рассылку. Команды:\n"
             "/play — получить ссылку на сегодняшнюю игру\n"
-            "/stats — общая статистика за день\n"
+            "/stats — статистика (в группе — зачёт)\n"
             "/me — твоя личная статистика\n"
+            "/register — участвовать в зачёте группы (напиши в группе)\n"
             "/stop — отписаться\n"
             "/lang — сменить язык"
         ),
@@ -135,12 +145,20 @@ MESSAGES: dict[str, dict[str, str]] = {
         "btn_me": "👤 Я",
         "btn_lang": "🌐 Язык",
         "btn_help": "❓ Помощь",
-        "group_stats_title": "📊 Игроки группы за {day}",
-        "group_stats_empty": "Пока никто из участников не играл. Напишите боту в группе, чтобы попасть в статистику.",
-        "group_stats_summary": "Итого: ✅ {won}  ❌ {lost}  из {total}",
-        "group_win": "🎉 {name} угадал(а) слово дня {flag} за {attempts}/6! Само слово — секрет 🤫",
+        "comp_title": "🏆 Зачёт группы",
+        "comp_empty": "Пока никто не зарегистрировался. Напишите /register в группе, чтобы участвовать в зачёте.",
+        "comp_row": "{rank} {name} — {score} 🏆 (✅{wins} ❌{losses} 💤{skips})",
+        "comp_legend": (
+            "🏆 очки · ✅ угадано · ❌ не угадано · 💤 пропущено\n"
+            "Первое угаданное слово дня = 3 очка, остальные = 1."
+        ),
+        "register_done": "✅ {name}, ты в зачёте этой группы! Теперь твои победы здесь считаются.",
+        "register_already": "{name}, ты уже участвуешь в зачёте этой группы.",
+        "register_in_group": "Команда /register работает только в групповом чате. Добавь меня в группу и напиши /register там.",
+        "group_win": "🎉 {name} первым(-ой) угадал(а) слово дня {flag} за {attempts}/6! +3 очка 🏆 Само слово — секрет 🤫",
         "cmd_play": "Сыграть в сегодняшнюю игру",
-        "cmd_stats": "Статистика за день",
+        "cmd_register": "Участвовать в зачёте группы",
+        "cmd_stats": "Статистика / зачёт группы",
         "cmd_me": "Моя статистика",
         "cmd_lang": "Сменить язык",
         "cmd_help": "Команды и помощь",
@@ -154,8 +172,9 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Hi! This is the daily «Verba» word-game bot — guess the 5-letter word in 6 tries.\n\n"
             "You're subscribed to the daily broadcast. Commands:\n"
             "/play — get today's game link\n"
-            "/stats — global stats for the day\n"
+            "/stats — stats (in a group: the leaderboard)\n"
             "/me — your personal stats\n"
+            "/register — join a group's competition (send it in the group)\n"
             "/stop — unsubscribe\n"
             "/lang — change language"
         ),
@@ -201,12 +220,20 @@ MESSAGES: dict[str, dict[str, str]] = {
         "btn_me": "👤 Me",
         "btn_lang": "🌐 Language",
         "btn_help": "❓ Help",
-        "group_stats_title": "📊 Group players for {day}",
-        "group_stats_empty": "No members have played yet. Message the bot in the group to appear in stats.",
-        "group_stats_summary": "Total: ✅ {won}  ❌ {lost}  of {total}",
-        "group_win": "🎉 {name} guessed today's word {flag} in {attempts}/6! The word stays secret 🤫",
+        "comp_title": "🏆 Group leaderboard",
+        "comp_empty": "No one has registered yet. Send /register in the group to join the competition.",
+        "comp_row": "{rank} {name} — {score} 🏆 (✅{wins} ❌{losses} 💤{skips})",
+        "comp_legend": (
+            "🏆 points · ✅ guessed · ❌ missed · 💤 skipped\n"
+            "First to guess the day's word = 3 pts, otherwise = 1."
+        ),
+        "register_done": "✅ {name}, you're in this group's competition! Your wins here now count.",
+        "register_already": "{name}, you're already in this group's competition.",
+        "register_in_group": "/register only works in a group chat. Add me to a group and send /register there.",
+        "group_win": "🎉 {name} was first to guess today's word {flag} in {attempts}/6! +3 pts 🏆 The word stays secret 🤫",
         "cmd_play": "Play today's game",
-        "cmd_stats": "Daily stats",
+        "cmd_register": "Join the group competition",
+        "cmd_stats": "Stats / group leaderboard",
         "cmd_me": "My stats",
         "cmd_lang": "Change language",
         "cmd_help": "Commands and help",

@@ -139,6 +139,71 @@ def test_daily_rows_for_users(db):
     assert db.daily_rows_for_users("1.05.2026", []) == []
 
 
+def test_register_is_idempotent(db):
+    assert db.register(-100, 1) is True
+    assert db.register(-100, 1) is False  # already registered
+    assert db.register(-200, 1) is True  # separate per group
+    assert db.is_registered(-100, 1) is True
+    assert db.is_registered(-300, 1) is False
+
+
+def test_credit_competition_first_and_subsequent(db):
+    db.add_user(1, "alice", "Alice")
+    db.add_user(2, "bob", "Bob")
+    db.register(-100, 1)
+    db.register(-100, 2)
+
+    # First winner of the (day, uk) round in this group: +3 and announced.
+    assert db.credit_competition(1, "1.05.2026", "uk", "won") == [-100]
+    # Second winner same round: +1, not announced.
+    assert db.credit_competition(2, "1.05.2026", "uk", "won") == []
+
+    standings = {s.user_id: s for s in db.competition_standings(-100)}
+    assert standings[1].score == 3
+    assert standings[2].score == 1
+    assert standings[1].wins == 1 and standings[2].wins == 1
+
+
+def test_credit_competition_per_language(db):
+    db.register(-100, 1)
+    assert db.credit_competition(1, "1.05.2026", "uk", "won") == [-100]
+    # A different language is a separate round -> first again.
+    assert db.credit_competition(1, "1.05.2026", "en", "won") == [-100]
+    assert db.competition_standings(-100)[0].score == 6  # 3 + 3
+
+
+def test_credit_competition_loss_and_unregistered(db):
+    db.register(-100, 1)
+    assert db.credit_competition(1, "1.05.2026", "uk", "lost") == []  # loss, no announce
+    # Unregistered user earns nothing and triggers no announcement.
+    assert db.credit_competition(2, "1.05.2026", "uk", "won") == []
+    s1 = db.competition_standings(-100)[0]
+    assert s1.losses == 1 and s1.score == 0
+    assert db.competition_standings(-200) == []  # no registrations there
+
+
+def test_close_competition_marks_skips(db):
+    db.register(-100, 1)
+    db.credit_competition(1, "1.05.2026", "uk", "won")  # plays uk only
+    db.close_competition("1.05.2026")
+    s = db.competition_standings(-100)[0]
+    assert s.wins == 1
+    assert s.skips == 2  # ru + en unplayed -> skipped; uk untouched
+    assert s.score == 3
+
+
+def test_competition_standings_orders_by_score(db):
+    db.add_user(1, None, "Alice")
+    db.add_user(2, None, "Bob")
+    db.register(-100, 1)
+    db.register(-100, 2)
+    db.credit_competition(2, "1.05.2026", "uk", "won")  # Bob first: 3
+    db.credit_competition(1, "1.05.2026", "uk", "won")  # Alice second: 1
+    db.credit_competition(1, "2.05.2026", "uk", "won")  # Alice first: 3 -> total 4
+    order = [s.user_id for s in db.competition_standings(-100)]
+    assert order == [1, 2]  # Alice 4 pts ahead of Bob 3 pts
+
+
 def test_user_history(db):
     db.record_result(1, "1.05.2026", "ru", "won", attempts=3)
     db.record_result(1, "2.05.2026", "ru", "lost", attempts=6)
