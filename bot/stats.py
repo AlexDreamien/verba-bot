@@ -187,8 +187,8 @@ def display_name(first_name: str | None, username: str | None, user_id: int) -> 
 _MEDALS = {0: "🥇", 1: "🥈", 2: "🥉"}
 
 
-def format_competition(standings: list[Standing], lang: str) -> str:
-    """Cumulative competition leaderboard for a group (points, ✅/❌/💤 counts)."""
+def format_competition(standings: list[Standing], season: int, lang: str) -> str:
+    """Competition leaderboard for a group's season (points, ✅/❌/💤 counts)."""
     if not standings:
         return t("comp_empty", lang)
     lines = []
@@ -207,7 +207,13 @@ def format_competition(standings: list[Standing], lang: str) -> str:
                 skips=s.skips,
             )
         )
-    return t("comp_title", lang) + "\n\n" + "\n".join(lines) + "\n\n" + t("comp_legend", lang)
+    return (
+        t("comp_title", lang, season=season)
+        + "\n\n"
+        + "\n".join(lines)
+        + "\n\n"
+        + t("comp_legend", lang)
+    )
 
 
 # --- helpers ---------------------------------------------------------------

@@ -7,7 +7,8 @@ Tables:
 * ``memberships`` — which users the bot has seen in which group chats. A normal
   bot can't enumerate group members, so this records users who interact in the
   group (and all senders if privacy mode is disabled).
-* ``chats``       — per-group settings (title, language).
+* ``chats``       — per-group settings (title, language, current season number
+  and whether a season is active).
 * ``registrations`` — explicit opt-in to a group's competition: one row per
   (chat, user). A user must ``/register`` separately in each group.
 * ``competition`` — one row per (chat, user, day, lang) round for registered
@@ -20,6 +21,13 @@ A "round" is a single (day, language) — there are three words per day, and a
 player scores in each language independently. Scoring: a win is +1 point, the
 first win in a group's round is +3 (total). Wins/losses/skips are counted per
 round; an unfinished or unplayed round becomes a skip at day close.
+
+Each group runs in **seasons** (``chats.season``, default 1, active by default).
+Competition rows are tagged with the season they were earned in, and the
+leaderboard shows only the current season — so a new season resets the standings
+while preserving history. Admins manage seasons with ``/startseason`` and
+``/finishseason``; while no season is active (after a finish, before the next
+start) results are still recorded personally but earn no competition points.
 
 Result lifecycle for a day::
 
@@ -90,9 +98,11 @@ CREATE TABLE IF NOT EXISTS memberships (
 CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
 
 CREATE TABLE IF NOT EXISTS chats (
-    chat_id INTEGER PRIMARY KEY,
-    title   TEXT,
-    lang    TEXT NOT NULL DEFAULT 'uk'
+    chat_id       INTEGER PRIMARY KEY,
+    title         TEXT,
+    lang          TEXT NOT NULL DEFAULT 'uk',
+    season        INTEGER NOT NULL DEFAULT 1,
+    season_active INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS registrations (
@@ -108,19 +118,21 @@ CREATE TABLE IF NOT EXISTS competition (
     user_id  INTEGER NOT NULL,
     day      TEXT NOT NULL,
     lang     TEXT NOT NULL,
+    season   INTEGER NOT NULL DEFAULT 1,
     status   TEXT NOT NULL,            -- 'won' | 'lost' | 'skipped'
     points   INTEGER NOT NULL DEFAULT 0,
     is_first INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (chat_id, user_id, day, lang)
 );
-CREATE INDEX IF NOT EXISTS idx_competition_round ON competition(chat_id, day, lang);
+CREATE INDEX IF NOT EXISTS idx_competition_round ON competition(chat_id, season, day, lang);
 
 CREATE TABLE IF NOT EXISTS competition_first (
     chat_id INTEGER NOT NULL,
+    season  INTEGER NOT NULL,
     day     TEXT NOT NULL,
     lang    TEXT NOT NULL,
     user_id INTEGER NOT NULL,
-    PRIMARY KEY (chat_id, day, lang)
+    PRIMARY KEY (chat_id, season, day, lang)
 );
 """
 
@@ -179,10 +191,33 @@ class VerbaDB:
         return conn
 
     def _migrate(self, conn: sqlite3.Connection) -> None:
-        """Add columns missing on databases created by older versions."""
-        cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
-        if "first_name" not in cols:
+        """Add columns/tables missing on databases created by older versions."""
+        user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
+        if "first_name" not in user_cols:
             conn.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
+
+        chat_cols = {r["name"] for r in conn.execute("PRAGMA table_info(chats)")}
+        if chat_cols and "season" not in chat_cols:
+            conn.execute("ALTER TABLE chats ADD COLUMN season INTEGER NOT NULL DEFAULT 1")
+        if chat_cols and "season_active" not in chat_cols:
+            conn.execute("ALTER TABLE chats ADD COLUMN season_active INTEGER NOT NULL DEFAULT 1")
+
+        comp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(competition)")}
+        if comp_cols and "season" not in comp_cols:
+            conn.execute("ALTER TABLE competition ADD COLUMN season INTEGER NOT NULL DEFAULT 1")
+
+        # competition_first gained ``season`` in its PRIMARY KEY; SQLite can't alter
+        # a PK in place, so recreate it (it only holds the current day's first-win
+        # dedup markers, which are safe to drop).
+        first_cols = {r["name"] for r in conn.execute("PRAGMA table_info(competition_first)")}
+        if first_cols and "season" not in first_cols:
+            conn.execute("DROP TABLE competition_first")
+            conn.execute(
+                "CREATE TABLE competition_first ("
+                "    chat_id INTEGER NOT NULL, season INTEGER NOT NULL, "
+                "    day TEXT NOT NULL, lang TEXT NOT NULL, user_id INTEGER NOT NULL, "
+                "    PRIMARY KEY (chat_id, season, day, lang))"
+            )
 
     # -- users -------------------------------------------------------------
 
@@ -301,6 +336,67 @@ class VerbaDB:
             ).fetchone()
         return row is not None
 
+    def unregister(self, chat_id: int, user_id: int) -> bool:
+        """Leave a group's competition. Returns True if the user was registered.
+
+        Past competition rows are kept (history) but no longer surface in the
+        leaderboard, which is filtered through ``registrations``.
+        """
+        with closing(self._connect()) as conn, conn:
+            cur = conn.execute(
+                "DELETE FROM registrations WHERE chat_id = ? AND user_id = ?",
+                (chat_id, user_id),
+            )
+        return cur.rowcount > 0
+
+    def get_season(self, chat_id: int) -> tuple[int, bool]:
+        """Return ``(season_number, is_active)``; defaults to season 1, active."""
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT season, season_active FROM chats WHERE chat_id = ?", (chat_id,)
+            ).fetchone()
+        if row is None:
+            return (1, True)
+        return (int(row["season"]), bool(row["season_active"]))
+
+    def start_season(self, chat_id: int) -> int | None:
+        """Begin the next season (resetting the leaderboard). Returns the new
+        season number, or ``None`` if a season is already running."""
+        with closing(self._connect()) as conn, conn:
+            season, active = self._season_row(conn, chat_id)
+            if active:
+                return None
+            new_season = season + 1
+            conn.execute(
+                "INSERT INTO chats (chat_id, season, season_active) VALUES (?, ?, 1) "
+                "ON CONFLICT(chat_id) DO UPDATE SET season = excluded.season, season_active = 1",
+                (chat_id, new_season),
+            )
+            return new_season
+
+    def finish_season(self, chat_id: int) -> int | None:
+        """Close the running season. Returns the finished season number, or
+        ``None`` if no season was active."""
+        with closing(self._connect()) as conn, conn:
+            season, active = self._season_row(conn, chat_id)
+            if not active:
+                return None
+            conn.execute(
+                "INSERT INTO chats (chat_id, season, season_active) VALUES (?, ?, 0) "
+                "ON CONFLICT(chat_id) DO UPDATE SET season_active = 0",
+                (chat_id, season),
+            )
+            return season
+
+    @staticmethod
+    def _season_row(conn: sqlite3.Connection, chat_id: int) -> tuple[int, bool]:
+        row = conn.execute(
+            "SELECT season, season_active FROM chats WHERE chat_id = ?", (chat_id,)
+        ).fetchone()
+        if row is None:
+            return (1, True)
+        return (int(row["season"]), bool(row["season_active"]))
+
     def credit_competition(self, user_id: int, day: str, lang: str, status: Status) -> list[int]:
         """Attribute a terminal round result to every group the user is registered in.
 
@@ -313,31 +409,36 @@ class VerbaDB:
             return []
         announce: list[int] = []
         with closing(self._connect()) as conn, conn:
-            chat_ids = [
-                int(r["chat_id"])
-                for r in conn.execute(
-                    "SELECT chat_id FROM registrations WHERE user_id = ?", (user_id,)
-                )
-            ]
-            for chat_id in chat_ids:
+            rows = conn.execute(
+                "SELECT r.chat_id AS chat_id, "
+                "       COALESCE(ch.season, 1) AS season, "
+                "       COALESCE(ch.season_active, 1) AS active "
+                "FROM registrations r LEFT JOIN chats ch ON ch.chat_id = r.chat_id "
+                "WHERE r.user_id = ?",
+                (user_id,),
+            ).fetchall()
+            for row in rows:
+                if not row["active"]:
+                    continue  # competition paused between seasons -> no points
+                chat_id, season = int(row["chat_id"]), int(row["season"])
                 is_first = False
                 if status == "won":
                     cur = conn.execute(
-                        "INSERT OR IGNORE INTO competition_first (chat_id, day, lang, user_id) "
-                        "VALUES (?, ?, ?, ?)",
-                        (chat_id, day, lang, user_id),
+                        "INSERT OR IGNORE INTO competition_first "
+                        "    (chat_id, season, day, lang, user_id) VALUES (?, ?, ?, ?, ?)",
+                        (chat_id, season, day, lang, user_id),
                     )
                     is_first = cur.rowcount == 1
                 points = (POINTS_FIRST if is_first else POINTS_WIN) if status == "won" else 0
                 conn.execute(
                     "INSERT INTO competition "
-                    "    (chat_id, user_id, day, lang, status, points, is_first) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                    "    (chat_id, user_id, day, lang, season, status, points, is_first) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT(chat_id, user_id, day, lang) DO UPDATE SET "
-                    "    status = excluded.status, points = excluded.points, "
-                    "    is_first = excluded.is_first "
+                    "    season = excluded.season, status = excluded.status, "
+                    "    points = excluded.points, is_first = excluded.is_first "
                     "WHERE competition.status NOT IN ('won', 'lost')",
-                    (chat_id, user_id, day, lang, status, points, 1 if is_first else 0),
+                    (chat_id, user_id, day, lang, season, status, points, 1 if is_first else 0),
                 )
                 if is_first:
                     announce.append(chat_id)
@@ -350,16 +451,26 @@ class VerbaDB:
         row unless a won/lost row already exists for that round.
         """
         with closing(self._connect()) as conn, conn:
-            regs = conn.execute("SELECT chat_id, user_id FROM registrations").fetchall()
+            regs = conn.execute(
+                "SELECT r.chat_id AS chat_id, r.user_id AS user_id, "
+                "       COALESCE(ch.season, 1) AS season, "
+                "       COALESCE(ch.season_active, 1) AS active "
+                "FROM registrations r LEFT JOIN chats ch ON ch.chat_id = r.chat_id"
+            ).fetchall()
             conn.executemany(
-                "INSERT INTO competition (chat_id, user_id, day, lang, status) "
-                "VALUES (?, ?, ?, ?, 'skipped') "
+                "INSERT INTO competition (chat_id, user_id, day, lang, season, status) "
+                "VALUES (?, ?, ?, ?, ?, 'skipped') "
                 "ON CONFLICT(chat_id, user_id, day, lang) DO NOTHING",
-                [(r["chat_id"], r["user_id"], day, lang) for r in regs for lang in COMP_LANGS],
+                [
+                    (r["chat_id"], r["user_id"], day, lang, r["season"])
+                    for r in regs
+                    if r["active"]
+                    for lang in COMP_LANGS
+                ],
             )
 
     def competition_standings(self, chat_id: int) -> list[Standing]:
-        """Cumulative leaderboard for a group: every registered player, ranked."""
+        """Leaderboard for a group's *current* season: every registered player, ranked."""
         with closing(self._connect()) as conn:
             rows = conn.execute(
                 "SELECT r.user_id AS user_id, u.username AS username, "
@@ -371,6 +482,8 @@ class VerbaDB:
                 "FROM registrations r "
                 "LEFT JOIN competition c "
                 "       ON c.chat_id = r.chat_id AND c.user_id = r.user_id "
+                "      AND c.season = COALESCE("
+                "              (SELECT season FROM chats WHERE chat_id = r.chat_id), 1) "
                 "LEFT JOIN users u ON u.user_id = r.user_id "
                 "WHERE r.chat_id = ? "
                 "GROUP BY r.user_id "

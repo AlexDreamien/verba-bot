@@ -30,15 +30,16 @@ def test_format_competition_ranks_and_medals():
         Standing(2, None, "Bob", score=4, wins=2, losses=0, skips=4),
         Standing(3, None, None, score=0, wins=0, losses=0, skips=0),
     ]
-    text = format_competition(standings, "en")
+    text = format_competition(standings, 2, "en")
     assert "🥇 Alice — 7 🏆 (✅3 ❌1 💤2)" in text
     assert "🥈 Bob" in text
     assert "🥉 #3" in text  # no name -> #id, third place medal
     assert "leaderboard" in text.lower()
+    assert "Season 2" in text
 
 
 def test_format_competition_empty():
-    assert "register" in format_competition([], "en").lower()
+    assert "register" in format_competition([], 1, "en").lower()
 
 
 def test_compute_daily_counts_and_averages():

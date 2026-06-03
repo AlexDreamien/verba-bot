@@ -30,7 +30,18 @@ from bot.web import create_app
 log = logging.getLogger("verba")
 
 # Commands shown in Telegram's "/" menu (descriptions are localized).
-_MENU_COMMANDS = ["play", "register", "stats", "me", "lang", "help", "stop"]
+_MENU_COMMANDS = [
+    "play",
+    "register",
+    "unregister",
+    "stats",
+    "me",
+    "lang",
+    "startseason",
+    "finishseason",
+    "help",
+    "stop",
+]
 
 
 async def _set_commands(bot: Bot) -> None:

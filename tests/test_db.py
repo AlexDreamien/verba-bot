@@ -204,6 +204,59 @@ def test_competition_standings_orders_by_score(db):
     assert order == [1, 2]  # Alice 4 pts ahead of Bob 3 pts
 
 
+def test_unregister(db):
+    db.register(-100, 1)
+    db.credit_competition(1, "1.05.2026", "uk", "won")
+    assert db.unregister(-100, 1) is True
+    assert db.unregister(-100, 1) is False  # already gone
+    assert db.competition_standings(-100) == []  # leaves the leaderboard
+    # Rejoining surfaces the preserved history again.
+    db.register(-100, 1)
+    assert db.competition_standings(-100)[0].score == 3
+
+
+def test_seasons_default_and_lifecycle(db):
+    assert db.get_season(-100) == (1, True)  # implicit season 1, active
+    # Can't start while a season is running.
+    assert db.start_season(-100) is None
+    assert db.finish_season(-100) == 1
+    assert db.get_season(-100) == (1, False)
+    # Now a new season can begin.
+    assert db.start_season(-100) == 2
+    assert db.get_season(-100) == (2, True)
+    assert db.finish_season(-100) == 2
+    assert db.finish_season(-100) is None  # nothing active
+
+
+def test_points_scoped_to_season(db):
+    db.register(-100, 1)
+    db.credit_competition(1, "1.05.2026", "uk", "won")  # season 1: +3
+    assert db.competition_standings(-100)[0].score == 3
+    # New season resets the visible leaderboard.
+    db.finish_season(-100)
+    db.start_season(-100)  # -> season 2
+    assert db.competition_standings(-100)[0].score == 0
+    db.credit_competition(1, "2.05.2026", "uk", "won")  # season 2: +3
+    assert db.competition_standings(-100)[0].score == 3
+
+
+def test_no_points_while_season_inactive(db):
+    db.register(-100, 1)
+    db.finish_season(-100)  # season 1 closed, none active
+    assert db.credit_competition(1, "1.05.2026", "uk", "won") == []  # paused: no announce
+    assert db.competition_standings(-100)[0].score == 0
+
+
+def test_first_win_resets_each_season(db):
+    db.register(-100, 1)
+    db.register(-100, 2)
+    assert db.credit_competition(1, "1.05.2026", "uk", "won") == [-100]  # season 1 first
+    db.finish_season(-100)
+    db.start_season(-100)  # season 2
+    # Same round key, new season -> first-win bonus available again.
+    assert db.credit_competition(2, "1.05.2026", "uk", "won") == [-100]
+
+
 def test_user_history(db):
     db.record_result(1, "1.05.2026", "ru", "won", attempts=3)
     db.record_result(1, "2.05.2026", "ru", "lost", attempts=6)

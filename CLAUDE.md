@@ -14,7 +14,7 @@ APScheduler 3 + SQLite. See `README.md`.
 pip install -r requirements-dev.txt
 cp .env.example .env            # set BOT_TOKEN, ADMIN_IDS, WEBAPP_URL
 python main.py
-pytest                          # 92 tests
+pytest                          # 97 tests
 ruff check . && black --check .
 ```
 
@@ -79,6 +79,20 @@ the aiohttp collector + the scheduler in one asyncio process.
   inserting a `skipped` row for every registered player × `COMP_LANGS` round
   with no won/lost row (unfinished counts as skipped). `competition_standings`
   LEFT JOINs `registrations` so a just-registered player shows with zeros.
+- **Seasons scope the leaderboard.** `chats.season`/`season_active` (default
+  `1`/active). `competition` rows + `competition_first` are tagged with the
+  season they were earned in; `competition_standings` filters to the *current*
+  season, so `/startseason` (admin) resets the visible board without losing
+  history. `credit_competition`/`close_competition` skip chats whose season is
+  inactive (between a `/finishseason` and the next `/startseason`) — games still
+  record personally but earn no points. `start_season` rejects if one is already
+  active (finish first); both fall back to `(1, active)` for chats with no row.
+- **`/unregister` keeps history.** It only deletes the `registrations` row;
+  past `competition` rows stay but drop out of the leaderboard (it's joined
+  through `registrations`), so rejoining restores the season's points.
+- **Group-admin gate:** season commands use `_is_group_admin` (Telegram
+  `get_chat_member` status `administrator`/`creator`, or a configured global
+  admin). Any API failure → treated as not-admin.
 - **`game.router` is included LAST** because its catch-all `F.text` handler
   (mentions → menu) would otherwise shadow command handlers in other routers.
   Menu callbacks use `query.from_user` (the requester), not the message author

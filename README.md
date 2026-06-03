@@ -66,6 +66,9 @@ per-day `not_played` for subscribers who didn't play.
 | `/stats` | everyone | today's summary in DM; the group leaderboard in a group |
 | `/me` | everyone | personal history, win rate, streaks |
 | `/register` | everyone | join the current group's competition (group only) |
+| `/unregister` | everyone | leave the current group's competition (group only) |
+| `/startseason` | group admins | begin a new season (resets the leaderboard) |
+| `/finishseason` | group admins | close the season and post final standings |
 | `/stop` | everyone | unsubscribe |
 | `/lang` | everyone | switch language (user's in DM, the group's in a group) |
 | `/menu`, `/help` | everyone | quick-action button menu |
@@ -91,6 +94,12 @@ A group can also run a **competition**:
   announcements a day). Later guessers that round get their point silently.
 - At day close, any round a registered player didn't finish (unplayed or started
   but not solved) is counted as a **skip** for that group.
+- **Seasons.** Each group runs in seasons (it starts in **season 1**). A group
+  admin can **`/finishseason`** (posts the final standings) and then
+  **`/startseason`** to begin the next one — which **resets** the visible
+  leaderboard while history is preserved. The season number is shown in `/stats`.
+  While no season is active (after a finish, before the next start) games are
+  still recorded personally but earn no competition points.
 
 A win flows from the Mini App (opened in DM — group `web_app` buttons aren't
 allowed) and is credited to every group the player is registered in. A normal
