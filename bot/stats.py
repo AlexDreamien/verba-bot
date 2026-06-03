@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from bot.daily import parse_day
-from bot.db import Result
+from bot.db import Member, Result
 from bot.i18n import t
 
 __all__ = [
@@ -21,8 +21,10 @@ __all__ = [
     "UserStats",
     "compute_daily",
     "compute_user",
+    "display_name",
     "format_daily",
     "format_duration",
+    "format_group_daily",
     "format_user",
 ]
 
@@ -168,6 +170,48 @@ def format_user(stats: UserStats, lang: str) -> str:
         max_streak=stats.max_streak,
     )
     return t("me_title", lang) + "\n\n" + body
+
+
+# --- group ----------------------------------------------------------------
+
+
+def display_name(first_name: str | None, username: str | None, user_id: int) -> str:
+    """A human label for a player: first name, else @username, else #id."""
+    if first_name:
+        return first_name
+    if username:
+        return f"@{username}"
+    return f"#{user_id}"
+
+
+def format_group_daily(members: list[Member], rows: list[Result], day: str, lang: str) -> str:
+    """Per-member results for a group on ``day``, with names (no word shown)."""
+    if not members:
+        return t("group_stats_empty", lang)
+    by_user: dict[int, list[Result]] = {}
+    for r in rows:
+        by_user.setdefault(r.user_id, []).append(r)
+
+    lines, won, lost = [], 0, 0
+    for m in members:
+        rs = by_user.get(m.user_id, [])
+        name = display_name(m.first_name, m.username, m.user_id)
+        win_attempts = [r.attempts for r in rs if r.status == "won" and r.attempts is not None]
+        if any(r.status == "won" for r in rs):
+            detail = f" — {min(win_attempts)}/6" if win_attempts else ""
+            lines.append(f"✅ {name}{detail}")
+            won += 1
+        elif any(r.status == "lost" for r in rs):
+            lines.append(f"❌ {name}")
+            lost += 1
+        elif any(r.status in ("in_progress", "unfinished") for r in rs):
+            lines.append(f"⏳ {name}")
+        else:
+            lines.append(f"💤 {name}")
+
+    head = t("group_stats_title", lang, day=day)
+    summary = t("group_stats_summary", lang, won=won, lost=lost, total=len(members))
+    return head + "\n\n" + "\n".join(lines) + "\n\n" + summary
 
 
 # --- helpers ---------------------------------------------------------------

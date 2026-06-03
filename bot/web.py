@@ -19,9 +19,11 @@ import logging
 
 from aiohttp import web
 
-from bot.auth import validate_init_data
+from bot.auth import InitData, validate_init_data
 from bot.config import Config
 from bot.db import VerbaDB
+from bot.i18n import t
+from bot.stats import LANG_FLAGS, display_name
 
 __all__ = ["create_app"]
 
@@ -66,7 +68,7 @@ async def _started(request: web.Request) -> web.Response:
     if lang not in _VALID_LANGS:
         return web.json_response({"ok": False, "error": "bad lang"}, status=400)
 
-    db.add_user(auth.user_id, auth.username)
+    db.add_user(auth.user_id, auth.username, auth.first_name)
     db.start_result(auth.user_id, day, lang)
     return web.json_response({"ok": True})
 
@@ -92,17 +94,39 @@ async def _result(request: web.Request) -> web.Response:
     elapsed_ms = _opt_int(payload.get("elapsed_ms"))
 
     db: VerbaDB = request.app["db"]
-    db.add_user(auth.user_id, auth.username)
-    db.record_result(auth.user_id, day, lang, status, attempts, elapsed_ms)
+    db.add_user(auth.user_id, auth.username, auth.first_name)
+    newly = db.record_result(auth.user_id, day, lang, status, attempts, elapsed_ms)
     log.info(
-        "Recorded %s for user %d on %s/%s (attempts=%s)",
+        "Recorded %s for user %d on %s/%s (attempts=%s, newly=%s)",
         status,
         auth.user_id,
         day,
         lang,
         attempts,
+        newly,
     )
+    if newly and status == "won":
+        await _announce_win(request.app, auth, lang, attempts)
     return web.json_response({"ok": True})
+
+
+async def _announce_win(
+    app: web.Application, auth: InitData, lang: str, attempts: int | None
+) -> None:
+    """Tell the player's groups that they guessed today's word (never the word)."""
+    bot = app.get("bot")
+    db: VerbaDB = app["db"]
+    if bot is None:
+        return
+    name = display_name(auth.first_name, auth.username, auth.user_id)
+    flag = LANG_FLAGS.get(lang, "")
+    for chat_id in db.user_groups(auth.user_id):
+        chat_lang = db.get_chat_lang(chat_id)
+        text = t("group_win", chat_lang, name=name, flag=flag, attempts=attempts or "?")
+        try:
+            await bot.send_message(chat_id, text)
+        except Exception:  # noqa: BLE001 — a single failed group send must not 500 the API
+            log.exception("Failed to announce win to chat %d", chat_id)
 
 
 async def _healthz(_: web.Request) -> web.Response:
@@ -131,10 +155,11 @@ def _clamp_attempts(value: object) -> int | None:
     return max(1, min(6, n))
 
 
-def create_app(db: VerbaDB, config: Config) -> web.Application:
+def create_app(db: VerbaDB, config: Config, bot=None) -> web.Application:
     app = web.Application(middlewares=[_cors_middleware])
     app["db"] = db
     app["config"] = config
+    app["bot"] = bot  # used to announce wins to groups; None disables announcements
     app["allow_origin"] = _origin(config.webapp_url)
     app.router.add_post("/api/started", _started)
     app.router.add_post("/api/result", _result)
