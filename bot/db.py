@@ -4,11 +4,22 @@ Tables:
 
 * ``users``       — one row per Telegram user (subscription flag, language, name).
 * ``results``     — one row per (user, day, lang), holding the day's outcome.
-* ``memberships`` — which users the bot has seen in which group chats (for group
-  stats and win announcements). A normal bot can't enumerate group members, so
-  this records users who interact in the group (and all senders if privacy mode
-  is disabled).
+* ``memberships`` — which users the bot has seen in which group chats. A normal
+  bot can't enumerate group members, so this records users who interact in the
+  group (and all senders if privacy mode is disabled).
 * ``chats``       — per-group settings (title, language).
+* ``registrations`` — explicit opt-in to a group's competition: one row per
+  (chat, user). A user must ``/register`` separately in each group.
+* ``competition`` — one row per (chat, user, day, lang) round for registered
+  players: outcome (won/lost/skipped), points, and whether it was the first win
+  in that group's round.
+* ``competition_first`` — the first winner per (chat, day, lang); used to award
+  the +3 first-guess bonus and announce exactly one winner per round per group.
+
+A "round" is a single (day, language) — there are three words per day, and a
+player scores in each language independently. Scoring: a win is +1 point, the
+first win in a group's round is +3 (total). Wins/losses/skips are counted per
+round; an unfinished or unplayed round becomes a skip at day close.
 
 Result lifecycle for a day::
 
@@ -30,7 +41,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-__all__ = ["VerbaDB", "Member", "Result", "Status", "User"]
+__all__ = ["VerbaDB", "Member", "Result", "Standing", "Status", "User"]
 
 Status = Literal["in_progress", "won", "lost", "unfinished", "not_played"]
 TERMINAL: frozenset[str] = frozenset({"won", "lost"})
@@ -38,6 +49,14 @@ TERMINAL: frozenset[str] = frozenset({"won", "lost"})
 # Default language for newly-seen users/chats (the bot's default is Ukrainian).
 # Kept here (not imported from i18n) so storage stays independent of messages.
 DEFAULT_USER_LANG = "uk"
+
+# The three daily rounds. Kept here (not imported from i18n) so storage stays
+# self-contained; close_competition marks a skip for each unplayed language.
+COMP_LANGS: tuple[str, ...] = ("uk", "ru", "en")
+
+# Competition points.
+POINTS_WIN = 1
+POINTS_FIRST = 3
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -75,6 +94,34 @@ CREATE TABLE IF NOT EXISTS chats (
     title   TEXT,
     lang    TEXT NOT NULL DEFAULT 'uk'
 );
+
+CREATE TABLE IF NOT EXISTS registrations (
+    chat_id   INTEGER NOT NULL,
+    user_id   INTEGER NOT NULL,
+    joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (chat_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_registrations_user ON registrations(user_id);
+
+CREATE TABLE IF NOT EXISTS competition (
+    chat_id  INTEGER NOT NULL,
+    user_id  INTEGER NOT NULL,
+    day      TEXT NOT NULL,
+    lang     TEXT NOT NULL,
+    status   TEXT NOT NULL,            -- 'won' | 'lost' | 'skipped'
+    points   INTEGER NOT NULL DEFAULT 0,
+    is_first INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (chat_id, user_id, day, lang)
+);
+CREATE INDEX IF NOT EXISTS idx_competition_round ON competition(chat_id, day, lang);
+
+CREATE TABLE IF NOT EXISTS competition_first (
+    chat_id INTEGER NOT NULL,
+    day     TEXT NOT NULL,
+    lang    TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (chat_id, day, lang)
+);
 """
 
 
@@ -92,6 +139,19 @@ class Member:
     user_id: int
     username: str | None
     first_name: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class Standing:
+    """One registered player's cumulative standing in a group's competition."""
+
+    user_id: int
+    username: str | None
+    first_name: str | None
+    score: int
+    wins: int
+    losses: int
+    skips: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +281,114 @@ class VerbaDB:
                 "ON CONFLICT(chat_id) DO UPDATE SET lang = excluded.lang",
                 (chat_id, lang),
             )
+
+    # -- competition (per-group, opt-in) ----------------------------------
+
+    def register(self, chat_id: int, user_id: int) -> bool:
+        """Opt a user into a group's competition. Returns True if newly added."""
+        with closing(self._connect()) as conn, conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO registrations (chat_id, user_id) VALUES (?, ?)",
+                (chat_id, user_id),
+            )
+        return cur.rowcount > 0
+
+    def is_registered(self, chat_id: int, user_id: int) -> bool:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM registrations WHERE chat_id = ? AND user_id = ?",
+                (chat_id, user_id),
+            ).fetchone()
+        return row is not None
+
+    def credit_competition(self, user_id: int, day: str, lang: str, status: Status) -> list[int]:
+        """Attribute a terminal round result to every group the user is registered in.
+
+        Awards points (first win in a group's round = :data:`POINTS_FIRST`, any
+        other win = :data:`POINTS_WIN`, a loss = 0) and returns the chat ids where
+        this user was the *first* to win the round — i.e. the chats to announce to.
+        Idempotent per round: an already-finalized competition row is left intact.
+        """
+        if status not in TERMINAL:
+            return []
+        announce: list[int] = []
+        with closing(self._connect()) as conn, conn:
+            chat_ids = [
+                int(r["chat_id"])
+                for r in conn.execute(
+                    "SELECT chat_id FROM registrations WHERE user_id = ?", (user_id,)
+                )
+            ]
+            for chat_id in chat_ids:
+                is_first = False
+                if status == "won":
+                    cur = conn.execute(
+                        "INSERT OR IGNORE INTO competition_first (chat_id, day, lang, user_id) "
+                        "VALUES (?, ?, ?, ?)",
+                        (chat_id, day, lang, user_id),
+                    )
+                    is_first = cur.rowcount == 1
+                points = (POINTS_FIRST if is_first else POINTS_WIN) if status == "won" else 0
+                conn.execute(
+                    "INSERT INTO competition "
+                    "    (chat_id, user_id, day, lang, status, points, is_first) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(chat_id, user_id, day, lang) DO UPDATE SET "
+                    "    status = excluded.status, points = excluded.points, "
+                    "    is_first = excluded.is_first "
+                    "WHERE competition.status NOT IN ('won', 'lost')",
+                    (chat_id, user_id, day, lang, status, points, 1 if is_first else 0),
+                )
+                if is_first:
+                    announce.append(chat_id)
+        return announce
+
+    def close_competition(self, day: str) -> None:
+        """Mark every unplayed/unfinished round as a skip for registered players.
+
+        For each registration and each of :data:`COMP_LANGS`, insert a ``skipped``
+        row unless a won/lost row already exists for that round.
+        """
+        with closing(self._connect()) as conn, conn:
+            regs = conn.execute("SELECT chat_id, user_id FROM registrations").fetchall()
+            conn.executemany(
+                "INSERT INTO competition (chat_id, user_id, day, lang, status) "
+                "VALUES (?, ?, ?, ?, 'skipped') "
+                "ON CONFLICT(chat_id, user_id, day, lang) DO NOTHING",
+                [(r["chat_id"], r["user_id"], day, lang) for r in regs for lang in COMP_LANGS],
+            )
+
+    def competition_standings(self, chat_id: int) -> list[Standing]:
+        """Cumulative leaderboard for a group: every registered player, ranked."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT r.user_id AS user_id, u.username AS username, "
+                "       u.first_name AS first_name, "
+                "       COALESCE(SUM(c.points), 0) AS score, "
+                "       COALESCE(SUM(c.status = 'won'), 0) AS wins, "
+                "       COALESCE(SUM(c.status = 'lost'), 0) AS losses, "
+                "       COALESCE(SUM(c.status = 'skipped'), 0) AS skips "
+                "FROM registrations r "
+                "LEFT JOIN competition c "
+                "       ON c.chat_id = r.chat_id AND c.user_id = r.user_id "
+                "LEFT JOIN users u ON u.user_id = r.user_id "
+                "WHERE r.chat_id = ? "
+                "GROUP BY r.user_id "
+                "ORDER BY score DESC, wins DESC, first_name, r.user_id",
+                (chat_id,),
+            ).fetchall()
+        return [
+            Standing(
+                user_id=int(r["user_id"]),
+                username=r["username"],
+                first_name=r["first_name"],
+                score=int(r["score"]),
+                wins=int(r["wins"]),
+                losses=int(r["losses"]),
+                skips=int(r["skips"]),
+            )
+            for r in rows
+        ]
 
     # -- results -----------------------------------------------------------
 

@@ -14,7 +14,7 @@ APScheduler 3 + SQLite. See `README.md`.
 pip install -r requirements-dev.txt
 cp .env.example .env            # set BOT_TOKEN, ADMIN_IDS, WEBAPP_URL
 python main.py
-pytest                          # 86 tests
+pytest                          # 92 tests
 ruff check . && black --check .
 ```
 
@@ -62,11 +62,23 @@ the aiohttp collector + the scheduler in one asyncio process.
   URL button to the bot's DM instead (`play_link_keyboard`); never send a
   `web_app` button to a group (Telegram 400s and the message silently fails).
 - **Group membership is best-effort.** `MembershipMiddleware` records senders the
-  bot sees in groups; a normal bot can't enumerate members (full coverage needs
-  group privacy disabled). Group stats / win announcements use this table.
-- **Win announcements fire once.** `db.record_result` returns `True` only when it
-  newly finalizes a game; `web._announce_win` keys off that so a retried POST
-  doesn't re-announce. The announcement never includes the word.
+  bot sees in groups; a normal bot can't enumerate members. This is why the
+  competition is **opt-in via `/register`**, not derived from membership.
+- **Competition = per-group, per-`(day, lang)` round.** `/register` writes a
+  `registrations` row (one per chat+user). On a terminal result `web._result`
+  calls `db.credit_competition`, which fans the result out to every group the
+  user is registered in. A round (`day`,`lang`) has at most one *first* winner
+  per group — enforced atomically by an `INSERT OR IGNORE` into
+  `competition_first` (SQLite serializes writes, so concurrent POSTs can't both
+  win). First win = `POINTS_FIRST` (3), other wins = `POINTS_WIN` (1).
+- **Win announcements: first-only, once, no word.** `credit_competition` returns
+  exactly the chats where the user was first this round; `web._announce_win`
+  posts only to those. `record_result` returning `True` (newly finalized) gates
+  the whole thing so a retried POST never double-credits or re-announces.
+- **Skips are set at day close.** `close_day_job` calls `db.close_competition`,
+  inserting a `skipped` row for every registered player × `COMP_LANGS` round
+  with no won/lost row (unfinished counts as skipped). `competition_standings`
+  LEFT JOINs `registrations` so a just-registered player shows with zeros.
 - **`game.router` is included LAST** because its catch-all `F.text` handler
   (mentions → menu) would otherwise shadow command handlers in other routers.
   Menu callbacks use `query.from_user` (the requester), not the message author

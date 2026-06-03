@@ -63,8 +63,9 @@ per-day `not_played` for subscribers who didn't play.
 |---|---|---|
 | `/start` | everyone | subscribe + welcome |
 | `/play` | everyone | get today's game button |
-| `/stats` | everyone | global summary for today |
+| `/stats` | everyone | today's summary in DM; the group leaderboard in a group |
 | `/me` | everyone | personal history, win rate, streaks |
+| `/register` | everyone | join the current group's competition (group only) |
 | `/stop` | everyone | unsubscribe |
 | `/lang` | everyone | switch language (user's in DM, the group's in a group) |
 | `/menu`, `/help` | everyone | quick-action button menu |
@@ -73,19 +74,28 @@ per-day `not_played` for subscribers who didn't play.
 Commands appear in Telegram's `/` hint menu (localized via `setMyCommands`), and
 the bot replies with a button menu on `/menu`, `/help`, or when mentioned in a group.
 
-## Groups
+## Groups & competitions
 
-Add the bot to a group and:
+Anyone can play and keep **personal** stats (`/me`) without joining anything.
+A group can also run a **competition**:
 
-- `/stats` shows a **per-member** breakdown with names (✅/❌/⏳/💤), not just totals.
-- when a member guesses the day's word, the bot posts **“{name} guessed today's
-  word!”** to that member's groups — **without revealing the word**.
+- Players opt in with **`/register`**, sent **inside that group**. Registration
+  is **per group** — if you're in two groups, `/register` in each separately.
+- `/stats` in a group shows the **leaderboard** of registered players: points,
+  ✅ guessed, ❌ missed, 💤 skipped.
+- A **round** is one `(day, language)` — three words a day, scored independently.
+- **Scoring:** guessing the word = **+1**; being the **first** registered player
+  in the group to guess that round's word = **+3** (instead of 1).
+- When someone is **first** in a round, the bot announces it to that group —
+  **without the word**, and only once per round per language (so up to three
+  announcements a day). Later guessers that round get their point silently.
+- At day close, any round a registered player didn't finish (unplayed or started
+  but not solved) is counted as a **skip** for that group.
 
-A normal bot can't list group members, so the bot only knows members it has
-**seen interact** (commands, mentions, or — if you disable group privacy in
-@BotFather, `/setprivacy` → *Disable* — every message). The Mini App is opened
-from the private chat (group `web_app` buttons aren't allowed), and a win is
-linked back to the player's groups via that membership table.
+A win flows from the Mini App (opened in DM — group `web_app` buttons aren't
+allowed) and is credited to every group the player is registered in. A normal
+bot can't enumerate group members, which is exactly why competitions are
+opt-in via `/register` rather than automatic.
 
 ## Architecture
 

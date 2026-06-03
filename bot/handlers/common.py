@@ -16,6 +16,7 @@ from bot.keyboards import (
     lang_keyboard,
     menu_keyboard,
 )
+from bot.stats import display_name
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -58,6 +59,29 @@ async def cmd_stop(message: Message, db: VerbaDB) -> None:
         return
     db.set_subscribed(message.from_user.id, False)
     await message.answer(t("unsubscribed", lang))
+
+
+@router.message(Command("register"))
+async def cmd_register(message: Message, db: VerbaDB) -> None:
+    if message.from_user is None:
+        return
+    if message.chat.type not in GROUP_TYPES:
+        await message.answer(t("register_in_group", user_lang(db, message.from_user.id)))
+        return
+    db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+    db.track_membership(
+        message.chat.id,
+        message.from_user.id,
+        message.from_user.username,
+        message.from_user.first_name,
+    )
+    db.upsert_chat(message.chat.id, message.chat.title)
+    newly = db.register(message.chat.id, message.from_user.id)
+    lang = db.get_chat_lang(message.chat.id)
+    name = display_name(
+        message.from_user.first_name, message.from_user.username, message.from_user.id
+    )
+    await message.answer(t("register_done" if newly else "register_already", lang, name=name))
 
 
 @router.message(Command("help"))

@@ -105,22 +105,26 @@ async def _result(request: web.Request) -> web.Response:
         attempts,
         newly,
     )
-    if newly and status == "won":
-        await _announce_win(request.app, auth, lang, attempts)
+    if newly:
+        # Attribute the result to every group the player is registered in; the
+        # returned chats are the ones where they were *first* to win this round.
+        first_in = db.credit_competition(auth.user_id, day, lang, status)
+        if status == "won" and first_in:
+            await _announce_win(request.app, auth, lang, attempts, first_in)
     return web.json_response({"ok": True})
 
 
 async def _announce_win(
-    app: web.Application, auth: InitData, lang: str, attempts: int | None
+    app: web.Application, auth: InitData, lang: str, attempts: int | None, chat_ids: list[int]
 ) -> None:
-    """Tell the player's groups that they guessed today's word (never the word)."""
+    """Announce a first win to the given groups (never revealing the word)."""
     bot = app.get("bot")
     db: VerbaDB = app["db"]
     if bot is None:
         return
     name = display_name(auth.first_name, auth.username, auth.user_id)
     flag = LANG_FLAGS.get(lang, "")
-    for chat_id in db.user_groups(auth.user_id):
+    for chat_id in chat_ids:
         chat_lang = db.get_chat_lang(chat_id)
         text = t("group_win", chat_lang, name=name, flag=flag, attempts=attempts or "?")
         try:

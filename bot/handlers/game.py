@@ -23,8 +23,8 @@ from bot.keyboards import MENU_CB_PREFIX, lang_keyboard, menu_keyboard, play_lin
 from bot.stats import (
     compute_daily,
     compute_user,
+    format_competition,
     format_daily,
-    format_group_daily,
     format_user,
 )
 
@@ -37,12 +37,11 @@ def _today(config: Config) -> str:
 
 
 async def _send_stats(bot, chat, db: VerbaDB, config: Config, lang: str) -> None:
-    day = _today(config)
     if chat.type in GROUP_TYPES:
-        members = db.group_members(chat.id)
-        rows = db.daily_rows_for_users(day, [m.user_id for m in members])
-        await bot.send_message(chat.id, format_group_daily(members, rows, day, lang))
+        # In a group, /stats is the competition leaderboard of registered players.
+        await bot.send_message(chat.id, format_competition(db.competition_standings(chat.id), lang))
     else:
+        day = _today(config)
         await bot.send_message(chat.id, format_daily(compute_daily(db.daily_rows(day)), day, lang))
 
 
