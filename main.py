@@ -36,6 +36,7 @@ _MENU_COMMANDS = [
     "unregister",
     "stats",
     "me",
+    "seasons",
     "lang",
     "startseason",
     "finishseason",

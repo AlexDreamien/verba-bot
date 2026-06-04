@@ -108,7 +108,7 @@ async def _result(request: web.Request) -> web.Response:
     if newly:
         # Attribute the result to every group the player is registered in; the
         # returned chats are the ones where they were *first* to win this round.
-        first_in = db.credit_competition(auth.user_id, day, lang, status)
+        first_in = db.credit_competition(auth.user_id, day, lang, status, attempts)
         if status == "won" and first_in:
             await _announce_win(request.app, auth, lang, attempts, first_in)
     return web.json_response({"ok": True})

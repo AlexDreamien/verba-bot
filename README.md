@@ -19,7 +19,12 @@ See [`NOTICE.md`](NOTICE.md).
   duplicate-letter coloring, an on-screen keyboard per locale, progress saved in
   `localStorage`, and an in-game **🇷🇺 / 🇺🇦 / 🇬🇧 language switch** (each locale
   has its own word list, keyboard layout, UI text, and word of the day).
-- `words.js` — hand-curated 5-letter word lists per locale.
+- `words.js` — generated 5-letter word lists per locale (≈365 answers each;
+  `tools/build_words.py`). The daily sequence is a seeded shuffle of the pool, so
+  it isn't alphabetically predictable.
+- After a game: a **share** button (emoji grid 🟩🟨⬛, no letters — clipboard, or
+  inline into any chat when enabled), a local **streak**, and a **countdown** to
+  the next word. A **◐ colorblind** palette and **haptic** feedback are built in.
 - It announces outcomes via a global `logEvent(name, {lang, day})` that the
   reporting layer (`tg-report.js`) listens to.
 
@@ -69,6 +74,7 @@ per-day `not_played` for subscribers who didn't play.
 | `/unregister` | everyone | leave the current group's competition (group only) |
 | `/startseason` | group admins | begin a new season (resets the leaderboard) |
 | `/finishseason` | group admins | close the season and post final standings |
+| `/seasons` | everyone | past season champions (group only) |
 | `/stop` | everyone | unsubscribe |
 | `/lang` | everyone | switch language (user's in DM, the group's in a group) |
 | `/menu`, `/help` | everyone | quick-action button menu |
@@ -85,26 +91,30 @@ A group can also run a **competition**:
 - Players opt in with **`/register`**, sent **inside that group**. Registration
   is **per group** — if you're in two groups, `/register` in each separately.
 - `/stats` in a group shows the **leaderboard** of registered players: points,
-  ✅ guessed, ❌ missed, 💤 skipped.
+  ✅ guessed, ❌ missed, 💤 skipped, ⌀ average tries.
 - A **round** is one `(day, language)` — three words a day, scored independently.
-- **Scoring:** guessing the word = **+1**; being the **first** registered player
-  in the group to guess that round's word = **+3** (instead of 1).
+- **Scoring (efficiency-weighted):** a win earns `max(1, 7 − tries)` — a 1-guess
+  solve = **6**, a 6-guess solve = **1** — plus **+3** for being the **first**
+  registered player in the group to win that round. Ties break by fewer average
+  tries.
 - When someone is **first** in a round, the bot announces it to that group —
   **without the word**, and only once per round per language (so up to three
-  announcements a day). Later guessers that round get their point silently.
-- At day close, any round a registered player didn't finish (unplayed or started
-  but not solved) is counted as a **skip** for that group.
+  announcements a day). Later guessers that round get their points silently.
+- Skips are counted **only for languages a player has joined** (won/lost at least
+  once that season), so a single-language player isn't punished for the others.
 - **Seasons.** Each group runs in seasons (it starts in **season 1**). A group
   admin can **`/finishseason`** (posts the final standings) and then
   **`/startseason`** to begin the next one — which **resets** the visible
-  leaderboard while history is preserved. The season number is shown in `/stats`.
-  While no season is active (after a finish, before the next start) games are
-  still recorded personally but earn no competition points.
+  leaderboard while history is preserved. The season number is shown in `/stats`,
+  the champion of each finished season is recorded, and **`/seasons`** lists past
+  champions. While no season is active (after a finish, before the next start)
+  games are still recorded personally but earn no competition points.
 
 A win flows from the Mini App (opened in DM — group `web_app` buttons aren't
-allowed) and is credited to every group the player is registered in. A normal
-bot can't enumerate group members, which is exactly why competitions are
-opt-in via `/register` rather than automatic.
+allowed) and is credited to every group the player is registered in. The group's
+**Play** button is a deep link (`?start=reg_<chat_id>`) that auto-registers the
+player into that group, so joining is one tap. A normal bot can't enumerate group
+members, which is exactly why competitions are opt-in rather than automatic.
 
 ## Architecture
 

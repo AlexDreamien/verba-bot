@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bot.db import Result, Standing
+from bot.db import Champion, Result, Standing
 from bot.stats import (
     compute_daily,
     compute_user,
@@ -10,6 +10,7 @@ from bot.stats import (
     format_competition,
     format_daily,
     format_duration,
+    format_seasons,
     format_user,
 )
 
@@ -26,20 +27,35 @@ def test_display_name_priority():
 
 def test_format_competition_ranks_and_medals():
     standings = [
-        Standing(1, "alice", "Alice", score=7, wins=3, losses=1, skips=2),
-        Standing(2, None, "Bob", score=4, wins=2, losses=0, skips=4),
-        Standing(3, None, None, score=0, wins=0, losses=0, skips=0),
+        Standing(1, "alice", "Alice", score=7, wins=3, losses=1, skips=2, avg_attempts=3.5),
+        Standing(2, None, "Bob", score=4, wins=2, losses=0, skips=4, avg_attempts=4.0),
+        Standing(3, None, None, score=0, wins=0, losses=0, skips=0, avg_attempts=None),
     ]
     text = format_competition(standings, 2, "en")
-    assert "🥇 Alice — 7 🏆 (✅3 ❌1 💤2)" in text
+    assert "🥇 Alice — 7 🏆 ✅3 ❌1 💤2 ⌀3.5" in text
     assert "🥈 Bob" in text
-    assert "🥉 #3" in text  # no name -> #id, third place medal
+    assert "🥉 #3 — 0 🏆 ✅0 ❌0 💤0 ⌀—" in text  # no name -> #id; no wins -> avg —
     assert "leaderboard" in text.lower()
     assert "Season 2" in text
 
 
 def test_format_competition_empty():
     assert "register" in format_competition([], 1, "en").lower()
+
+
+def test_format_seasons():
+    champs = [
+        Champion(season=2, user_id=1, username="al", first_name="Alice", score=42),
+        Champion(season=1, user_id=2, username=None, first_name="Bob", score=30),
+    ]
+    text = format_seasons(champs, "en")
+    assert "Season 2: Alice — 42" in text
+    assert "Season 1: Bob — 30" in text
+    assert "champion" in text.lower()
+
+
+def test_format_seasons_empty():
+    assert format_seasons([], "en")  # non-empty hint string
 
 
 def test_compute_daily_counts_and_averages():

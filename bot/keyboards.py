@@ -61,16 +61,20 @@ def play_keyboard(webapp_url: str, lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[button]])
 
 
-def play_link_keyboard(bot_username: str, lang: str) -> InlineKeyboardMarkup:
+def play_link_keyboard(
+    bot_username: str, lang: str, chat_id: int | None = None
+) -> InlineKeyboardMarkup:
     """A URL button that opens the bot's private chat (for group chats).
 
     ``web_app`` buttons can't be used in groups, so we send users to the private
     chat with the bot, where the Mini App (and result reporting) works fully.
+    When ``chat_id`` is given, the link carries a ``reg_<chat_id>`` start payload
+    so ``/start`` auto-registers the user into that group's competition.
     """
-    button = InlineKeyboardButton(
-        text=t("play_button", lang),
-        url=f"https://t.me/{bot_username}",
-    )
+    url = f"https://t.me/{bot_username}"
+    if chat_id is not None:
+        url += f"?start=reg_{chat_id}"
+    button = InlineKeyboardButton(text=t("play_button", lang), url=url)
     return InlineKeyboardMarkup(inline_keyboard=[[button]])
 
 

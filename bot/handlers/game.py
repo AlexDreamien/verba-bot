@@ -11,7 +11,13 @@ from datetime import UTC, datetime
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineQuery,
+    InlineQueryResultArticle,
+    InputTextMessageContent,
+    Message,
+)
 
 from bot.broadcast import broadcast_daily, send_play
 from bot.config import Config
@@ -52,7 +58,9 @@ async def _send_play(bot, chat, db: VerbaDB, config: Config, lang: str, bot_user
         await bot.send_message(chat.id, t("no_webapp", lang))
     elif chat.type in GROUP_TYPES:
         await bot.send_message(
-            chat.id, t("play_in_private", lang), reply_markup=play_link_keyboard(bot_username, lang)
+            chat.id,
+            t("play_in_private", lang),
+            reply_markup=play_link_keyboard(bot_username, lang, chat.id),
         )
     else:
         await send_play(bot, chat.id, config, lang)
@@ -125,6 +133,26 @@ async def on_menu(query: CallbackQuery, db: VerbaDB, config: Config, bot_usernam
     elif action == "help":
         await bot.send_message(chat.id, t("menu_title", lang), reply_markup=menu_keyboard(lang))
     await query.answer()
+
+
+@router.inline_query()
+async def on_inline(query: InlineQuery, db: VerbaDB, bot_username: str) -> None:
+    """Let players share their result grid into any chat (requires inline mode).
+
+    The Mini App's share button puts the emoji grid into the inline query; we echo
+    it back as the message, with a promo line linking to the bot.
+    """
+    lang = user_lang(db, query.from_user.id) if query.from_user else "uk"
+    grid = (query.query or "").strip()
+    promo = t("share_promo", lang, bot=bot_username)
+    message_text = f"{grid}\n\n{promo}" if grid else promo
+    result = InlineQueryResultArticle(
+        id="verba-share",
+        title=t("share_title", lang),
+        description=grid[:60] or "Verba",
+        input_message_content=InputTextMessageContent(message_text=message_text),
+    )
+    await query.answer([result], cache_time=1, is_personal=True)
 
 
 @router.message(F.text)
