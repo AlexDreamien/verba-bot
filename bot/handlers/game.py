@@ -23,7 +23,7 @@ from bot.broadcast import broadcast_daily, send_play
 from bot.config import Config
 from bot.daily import day_key
 from bot.db import VerbaDB
-from bot.handlers.common import GROUP_TYPES, effective_lang, user_lang
+from bot.handlers.common import GROUP_TYPES, effective_lang, is_admin_here, user_lang
 from bot.i18n import t
 from bot.keyboards import MENU_CB_PREFIX, lang_keyboard, menu_keyboard, play_link_keyboard
 from bot.stats import (
@@ -131,7 +131,10 @@ async def on_menu(query: CallbackQuery, db: VerbaDB, config: Config, bot_usernam
         scope = "group" if is_group else "user"
         await bot.send_message(chat.id, t("lang_choose", lang), reply_markup=lang_keyboard(scope))
     elif action == "help":
-        await bot.send_message(chat.id, t("menu_title", lang), reply_markup=menu_keyboard(lang))
+        admin = await is_admin_here(bot, chat, query.from_user.id, config)
+        await bot.send_message(
+            chat.id, t("menu_title", lang), reply_markup=menu_keyboard(lang, admin)
+        )
     await query.answer()
 
 
@@ -156,7 +159,7 @@ async def on_inline(query: InlineQuery, db: VerbaDB, bot_username: str) -> None:
 
 
 @router.message(F.text)
-async def on_text(message: Message, db: VerbaDB, bot_username: str) -> None:
+async def on_text(message: Message, db: VerbaDB, config: Config, bot_username: str) -> None:
     """Fallback: show the menu on plain text (private) or on a mention (groups)."""
     text = message.text or ""
     if text.startswith("/"):
@@ -167,4 +170,7 @@ async def on_text(message: Message, db: VerbaDB, bot_username: str) -> None:
     ):
         return
     lang = effective_lang(db, message)
-    await message.answer(t("menu_title", lang), reply_markup=menu_keyboard(lang))
+    is_admin = message.from_user is not None and await is_admin_here(
+        message.bot, message.chat, message.from_user.id, config
+    )
+    await message.answer(t("menu_title", lang), reply_markup=menu_keyboard(lang, is_admin))

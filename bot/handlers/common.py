@@ -59,7 +59,8 @@ async def cmd_start(message: Message, db: VerbaDB, config: Config, command: Comm
             markup = play_keyboard(config.webapp_url, lang) if config.webapp_url else None
             await message.answer(t("register_done_dm", lang), reply_markup=markup)
             return
-    await message.answer(t("welcome", lang), reply_markup=menu_keyboard(lang))
+    is_admin = message.from_user.id in config.admin_ids
+    await message.answer(t("welcome", lang), reply_markup=menu_keyboard(lang, is_admin))
 
 
 @router.message(Command("stop"))
@@ -113,17 +114,25 @@ async def cmd_unregister(message: Message, db: VerbaDB) -> None:
     await message.answer(t("unregister_done" if removed else "unregister_not", lang, name=name))
 
 
+async def is_admin_here(bot, chat, user_id: int, config: Config) -> bool:
+    """True if ``user_id`` is a bot operator, or a Telegram admin/creator of the
+    current group. In a private chat only the configured operators count."""
+    if user_id in config.admin_ids:
+        return True
+    if chat.type in GROUP_TYPES:
+        try:
+            member = await bot.get_chat_member(chat.id, user_id)
+        except Exception:  # noqa: BLE001 — treat any lookup failure as "not an admin"
+            return False
+        return getattr(member, "status", "") in ("administrator", "creator")
+    return False
+
+
 async def _is_group_admin(message: Message, config: Config) -> bool:
-    """True if the sender is a chat admin/creator (or a configured global admin)."""
+    """True if the sender may manage the group (admin/creator or bot operator)."""
     if message.from_user is None:
         return False
-    if message.from_user.id in config.admin_ids:
-        return True
-    try:
-        member = await message.bot.get_chat_member(message.chat.id, message.from_user.id)
-    except Exception:  # noqa: BLE001 — treat any lookup failure as "not an admin"
-        return False
-    return getattr(member, "status", "") in ("administrator", "creator")
+    return await is_admin_here(message.bot, message.chat, message.from_user.id, config)
 
 
 @router.message(Command("startseason"))
@@ -181,9 +190,12 @@ async def cmd_seasons(message: Message, db: VerbaDB) -> None:
 
 @router.message(Command("help"))
 @router.message(Command("menu"))
-async def cmd_menu(message: Message, db: VerbaDB) -> None:
+async def cmd_menu(message: Message, db: VerbaDB, config: Config) -> None:
     lang = effective_lang(db, message)
-    await message.answer(t("menu_title", lang), reply_markup=menu_keyboard(lang))
+    is_admin = message.from_user is not None and await is_admin_here(
+        message.bot, message.chat, message.from_user.id, config
+    )
+    await message.answer(t("menu_title", lang), reply_markup=menu_keyboard(lang, is_admin))
 
 
 @router.message(Command("lang"))

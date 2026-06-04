@@ -20,32 +20,52 @@ LANG_CB_PREFIX = "lang:"
 GROUP_LANG_CB_PREFIX = "glang:"
 MENU_CB_PREFIX = "menu:"
 
+# Manuals live in the repo and render on GitHub; uk shares the Russian manual.
+_DOCS_BASE = "https://github.com/AlexDreamien/verba-bot/blob/main/docs/"
+MANUAL_URLS = {
+    "uk": _DOCS_BASE + "MANUAL-USERS.md",
+    "ru": _DOCS_BASE + "MANUAL-USERS.md",
+    "en": _DOCS_BASE + "MANUAL-USERS.en.md",
+}
+ADMIN_MANUAL_URLS = {
+    "uk": _DOCS_BASE + "MANUAL-ADMINS.md",
+    "ru": _DOCS_BASE + "MANUAL-ADMINS.md",
+    "en": _DOCS_BASE + "MANUAL-ADMINS.en.md",
+}
 
-def menu_keyboard(lang: str) -> InlineKeyboardMarkup:
-    """Quick-action menu shown on /menu, /help, or when the bot is mentioned."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+
+def menu_keyboard(lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:
+    """Quick-action menu shown on /menu, /help, or when the bot is mentioned.
+
+    Always includes a link to the player guide; for admins it also links to the
+    admin guide.
+    """
+    rows = [
+        [InlineKeyboardButton(text=t("play_button", lang), callback_data=f"{MENU_CB_PREFIX}play")],
+        [
+            InlineKeyboardButton(text=t("btn_stats", lang), callback_data=f"{MENU_CB_PREFIX}stats"),
+            InlineKeyboardButton(text=t("btn_me", lang), callback_data=f"{MENU_CB_PREFIX}me"),
+        ],
+        [
+            InlineKeyboardButton(text=t("btn_lang", lang), callback_data=f"{MENU_CB_PREFIX}lang"),
+            InlineKeyboardButton(text=t("btn_help", lang), callback_data=f"{MENU_CB_PREFIX}help"),
+        ],
+        [
+            InlineKeyboardButton(
+                text=t("btn_manual", lang), url=MANUAL_URLS.get(lang, MANUAL_URLS["en"])
+            )
+        ],
+    ]
+    if is_admin:
+        rows.append(
             [
                 InlineKeyboardButton(
-                    text=t("play_button", lang), callback_data=f"{MENU_CB_PREFIX}play"
+                    text=t("btn_admin_manual", lang),
+                    url=ADMIN_MANUAL_URLS.get(lang, ADMIN_MANUAL_URLS["en"]),
                 )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=t("btn_stats", lang), callback_data=f"{MENU_CB_PREFIX}stats"
-                ),
-                InlineKeyboardButton(text=t("btn_me", lang), callback_data=f"{MENU_CB_PREFIX}me"),
-            ],
-            [
-                InlineKeyboardButton(
-                    text=t("btn_lang", lang), callback_data=f"{MENU_CB_PREFIX}lang"
-                ),
-                InlineKeyboardButton(
-                    text=t("btn_help", lang), callback_data=f"{MENU_CB_PREFIX}help"
-                ),
-            ],
-        ]
-    )
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def play_keyboard(webapp_url: str, lang: str) -> InlineKeyboardMarkup:

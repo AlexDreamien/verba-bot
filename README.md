@@ -83,6 +83,11 @@ per-day `not_played` for subscribers who didn't play.
 Commands appear in Telegram's `/` hint menu (localized via `setMyCommands`), and
 the bot replies with a button menu on `/menu`, `/help`, or when mentioned in a group.
 
+End-user guides — players: [RU](docs/MANUAL-USERS.md) ·
+[EN](docs/MANUAL-USERS.en.md); admins & operator:
+[RU](docs/MANUAL-ADMINS.md) · [EN](docs/MANUAL-ADMINS.en.md). The bot's menu also
+links to them (the player guide for everyone, plus the admin guide for admins).
+
 ## Groups & competitions
 
 Anyone can play and keep **personal** stats (`/me`) without joining anything.
