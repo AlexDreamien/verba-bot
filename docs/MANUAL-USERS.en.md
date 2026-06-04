@@ -67,6 +67,12 @@ These work **in the bot's direct chat**:
 If the bot is in a group chat, that chat can run a shared **competition**. Your
 personal stats stay separate — only people who **register** take part.
 
+> To keep the chat clean, the bot replies to your actions (game, personal stats,
+> language, menu and any buttons) **in your DM**, not in the group. Only
+> registration, the leaderboard and win announcements stay in the chat. So open
+> the bot in private first (`/start`). A non-admin can pull the leaderboard
+> **once per hour** (admins anytime).
+
 ### How to join
 - Send **`/register`** in the group, **or**
 - tap the **Play** button in the group — it opens the bot's direct chat and

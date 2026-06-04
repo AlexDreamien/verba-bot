@@ -353,6 +353,31 @@ class VerbaDB:
                 (chat_id, lang),
             )
 
+    # Tables keyed by chat_id, remapped when a group migrates to a supergroup.
+    _CHAT_TABLES = (
+        "registrations",
+        "chats",
+        "competition",
+        "competition_first",
+        "season_history",
+        "memberships",
+    )
+
+    def migrate_chat(self, old_id: int, new_id: int) -> None:
+        """Move all data from ``old_id`` to ``new_id`` (group → supergroup upgrade).
+
+        Telegram changes a group's id on upgrade; without this, announcements and
+        the leaderboard would target the dead id. ``UPDATE OR IGNORE`` then a
+        cleanup delete keeps any pre-existing rows under the new id.
+        """
+        with closing(self._connect()) as conn, conn:
+            for table in self._CHAT_TABLES:
+                conn.execute(
+                    f"UPDATE OR IGNORE {table} SET chat_id = ? WHERE chat_id = ?",  # noqa: S608
+                    (new_id, old_id),
+                )
+                conn.execute(f"DELETE FROM {table} WHERE chat_id = ?", (old_id,))  # noqa: S608
+
     # -- competition (per-group, opt-in) ----------------------------------
 
     def register(self, chat_id: int, user_id: int) -> bool:

@@ -223,6 +223,24 @@ def test_unregister(db):
     assert db.competition_standings(-100)[0].score == 7
 
 
+def test_migrate_chat_remaps_everything(db):
+    db.register(-100, 1)
+    db.credit_competition(1, "1.05.2026", "uk", "won", attempts=2)  # 5 + 3 = 8
+    db.set_chat_lang(-100, "en")
+    db.finish_season(-100)
+    db.record_champion(-100, 1, 1, 8)
+
+    db.migrate_chat(-100, -1001999999999)
+
+    assert db.is_registered(-100, 1) is False
+    assert db.is_registered(-1001999999999, 1) is True
+    assert db.get_chat_lang(-1001999999999) == "en"
+    assert db.competition_standings(-100) == []
+    new = db.competition_standings(-1001999999999)
+    assert new and new[0].score == 8
+    assert db.season_history(-1001999999999)[0].season == 1
+
+
 def test_season_history_champions(db):
     db.add_user(1, None, "Alice")
     db.register(-100, 1)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
@@ -40,6 +41,54 @@ def effective_lang(db: VerbaDB, message: Message) -> str:
     return DEFAULT_LANG
 
 
+# --- private-delivery helpers (keep group chats spam-free) -----------------
+
+
+async def dm(bot, user_id: int, text: str, reply_markup=None) -> bool:
+    """Send to a user's private chat. Returns False if the bot can't reach them."""
+    try:
+        await bot.send_message(user_id, text, reply_markup=reply_markup)
+        return True
+    except Exception:  # noqa: BLE001 — user hasn't opened the bot, blocked it, etc.
+        return False
+
+
+# Non-admins may pull the group leaderboard at most once per hour (per chat).
+STATS_COOLDOWN_SEC = 3600
+_stats_seen: dict[tuple[int, int], float] = {}
+
+
+def group_stats_on_cooldown(chat_id: int, user_id: int) -> bool:
+    last = _stats_seen.get((chat_id, user_id))
+    return last is not None and (time.monotonic() - last) < STATS_COOLDOWN_SEC
+
+
+def mark_group_stats(chat_id: int, user_id: int) -> None:
+    _stats_seen[(chat_id, user_id)] = time.monotonic()
+
+
+async def respond(
+    message: Message, db: VerbaDB, bot_username: str, text: str, reply_markup=None
+) -> None:
+    """Reply in place in a private chat; in a group, send to the user's DM instead
+    (so the group stays free of per-user spam). Falls back to a short group hint
+    if the bot can't message the user."""
+    if message.chat.type in GROUP_TYPES and message.from_user is not None:
+        if not await dm(message.bot, message.from_user.id, text, reply_markup):
+            await message.reply(t("dm_first", effective_lang(db, message), bot=bot_username))
+    else:
+        await message.answer(text, reply_markup=reply_markup)
+
+
+@router.message(F.migrate_to_chat_id)
+async def on_migrate(message: Message, db: VerbaDB) -> None:
+    """Remap stored data when a group is upgraded to a supergroup (id changes)."""
+    new_id = message.migrate_to_chat_id
+    if new_id is not None:
+        db.migrate_chat(message.chat.id, new_id)
+        log.info("Chat migrated: %d -> %d", message.chat.id, new_id)
+
+
 @router.message(Command("start"))
 async def cmd_start(message: Message, db: VerbaDB, config: Config, command: CommandObject) -> None:
     if message.from_user is None:
@@ -64,16 +113,16 @@ async def cmd_start(message: Message, db: VerbaDB, config: Config, command: Comm
 
 
 @router.message(Command("stop"))
-async def cmd_stop(message: Message, db: VerbaDB) -> None:
+async def cmd_stop(message: Message, db: VerbaDB, bot_username: str) -> None:
     if message.from_user is None:
         return
     lang = user_lang(db, message.from_user.id)
     user = db.get_user(message.from_user.id)
     if user is None or not user.subscribed:
-        await message.answer(t("not_subscribed", lang))
+        await respond(message, db, bot_username, t("not_subscribed", lang))
         return
     db.set_subscribed(message.from_user.id, False)
-    await message.answer(t("unsubscribed", lang))
+    await respond(message, db, bot_username, t("unsubscribed", lang))
 
 
 @router.message(Command("register"))
@@ -190,19 +239,26 @@ async def cmd_seasons(message: Message, db: VerbaDB) -> None:
 
 @router.message(Command("help"))
 @router.message(Command("menu"))
-async def cmd_menu(message: Message, db: VerbaDB, config: Config) -> None:
-    lang = effective_lang(db, message)
-    is_admin = message.from_user is not None and await is_admin_here(
-        message.bot, message.chat, message.from_user.id, config
-    )
-    await message.answer(t("menu_title", lang), reply_markup=menu_keyboard(lang, is_admin))
+async def cmd_menu(message: Message, db: VerbaDB, config: Config, bot_username: str) -> None:
+    if message.from_user is None:
+        return
+    lang = user_lang(db, message.from_user.id)
+    is_admin = await is_admin_here(message.bot, message.chat, message.from_user.id, config)
+    await respond(message, db, bot_username, t("menu_title", lang), menu_keyboard(lang, is_admin))
 
 
 @router.message(Command("lang"))
-async def cmd_lang(message: Message, db: VerbaDB) -> None:
-    lang = effective_lang(db, message)
-    scope = "group" if message.chat.type in GROUP_TYPES else "user"
-    await message.answer(t("lang_choose", lang), reply_markup=lang_keyboard(scope))
+async def cmd_lang(message: Message, db: VerbaDB, config: Config, bot_username: str) -> None:
+    if message.from_user is None:
+        return
+    # Group language is a group setting -> admins change it in-group; everyone
+    # else gets a personal-language picker in their DM.
+    if message.chat.type in GROUP_TYPES and await _is_group_admin(message, config):
+        glang = db.get_chat_lang(message.chat.id)
+        await message.answer(t("lang_choose", glang), reply_markup=lang_keyboard("group"))
+        return
+    ulang = user_lang(db, message.from_user.id)
+    await respond(message, db, bot_username, t("lang_choose", ulang), lang_keyboard("user"))
 
 
 @router.callback_query(F.data.startswith(GROUP_LANG_CB_PREFIX))
