@@ -14,7 +14,7 @@ APScheduler 3 + SQLite. See `README.md`.
 pip install -r requirements-dev.txt
 cp .env.example .env            # set BOT_TOKEN, ADMIN_IDS, WEBAPP_URL
 python main.py
-pytest                          # 101 tests
+pytest                          # 107 tests
 ruff check . && black --check .
 ```
 
@@ -109,6 +109,23 @@ the aiohttp collector + the scheduler in one asyncio process.
 - **Share grid uses inline mode** only if `window.VERBA_INLINE_SHARE` is true
   (needs BotFather `/setinline`); the bot's `inline_query` handler echoes the
   grid. Default path is clipboard copy.
+- **Anti-spam: groups only show registration + the leaderboard + win announces.**
+  Everything else routes to the user's DM via `common.respond()` (messages) or
+  `dm()` + a callback toast (buttons). The leaderboard/daily summary stay in
+  place. Helpers live in `bot/handlers/common.py`.
+- **Group leaderboard is rate-limited** for non-admins: `group_stats_on_cooldown`
+  / `mark_group_stats` (`STATS_COOLDOWN_SEC=3600`, in-memory). Admins bypass.
+- **`/lang` in a group** shows the group picker only for admins; everyone else
+  gets a personal picker in DM (the `glang:` callback edits the chat it's sent
+  to, so the group picker must be posted in the group).
+- **Scoped `setMyCommands`** (`main._set_commands`): private = full set; all
+  group chats = `register/unregister/play/help`; group admins also get
+  `stats/seasons/startseason/finishseason`. Hints only — handlers still run if a
+  command is typed (and route to DM as above).
+- **Group→supergroup migration:** `common.on_migrate` (`F.migrate_to_chat_id`)
+  calls `db.migrate_chat(old,new)` to remap registrations/chats/competition/
+  competition_first/season_history/memberships — otherwise announcements target
+  the dead id. `web._result` logs `first_in`; `_announce_win` logs success/failure.
 - **`game.router` is included LAST** because its catch-all `F.text` handler
   (mentions → menu) would otherwise shadow command handlers in other routers.
   Menu callbacks use `query.from_user` (the requester), not the message author

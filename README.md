@@ -121,6 +121,16 @@ allowed) and is credited to every group the player is registered in. The group's
 player into that group, so joining is one tap. A normal bot can't enumerate group
 members, which is exactly why competitions are opt-in rather than automatic.
 
+**Group chats stay quiet.** Only three things appear in a group: registration
+replies, the **season leaderboard**, and **win announcements**. Every other
+reply (play, personal stats, language, menu — and any button press except the
+leaderboard) is delivered to the player's **private chat** instead. Non-admins
+can pull the leaderboard at most **once per hour**; admins anytime. The `/`
+command hints are scoped, too: in groups players see only
+`register/unregister/play/help`, while admins also see the season/stats controls.
+If a group is upgraded to a supergroup, the bot remaps its stored id so the
+competition keeps working.
+
 ## Architecture
 
 "Clean core + thin layer". The core is free of aiogram/aiohttp and unit-tested:

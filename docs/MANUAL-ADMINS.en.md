@@ -25,6 +25,12 @@ Bot: **@VerbaGame_bot**. Competition commands only work in groups.
 > The game can't be opened by a button directly in a group (a Telegram
 > limitation), so the **Play** button leads to the bot's direct chat. That's normal.
 
+> **Group anti-spam.** The bot replies to players in their DM for everything
+> except registration, the leaderboard and win announcements. In the `/` hint,
+> regular players in a group see only `register/unregister/play/help`; admins also
+> see `stats/seasons/startseason/finishseason`. A non-admin can pull the
+> leaderboard once per hour; admins anytime.
+
 ### Group language
 **`/lang`** in the group sets the language the bot uses in that chat (tables,
 announcements). It doesn't affect the game's languages — players choose those in

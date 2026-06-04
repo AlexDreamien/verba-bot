@@ -109,6 +109,7 @@ async def _result(request: web.Request) -> web.Response:
         # Attribute the result to every group the player is registered in; the
         # returned chats are the ones where they were *first* to win this round.
         first_in = db.credit_competition(auth.user_id, day, lang, status, attempts)
+        log.info("Competition credit: user=%d %s/%s first_in=%s", auth.user_id, day, lang, first_in)
         if status == "won" and first_in:
             await _announce_win(request.app, auth, lang, attempts, first_in)
     return web.json_response({"ok": True})
@@ -129,8 +130,9 @@ async def _announce_win(
         text = t("group_win", chat_lang, name=name, flag=flag, attempts=attempts or "?")
         try:
             await bot.send_message(chat_id, text)
-        except Exception:  # noqa: BLE001 — a single failed group send must not 500 the API
-            log.exception("Failed to announce win to chat %d", chat_id)
+            log.info("Announced win to chat %d", chat_id)
+        except Exception as exc:  # noqa: BLE001 — a failed group send must not 500 the API
+            log.warning("Failed to announce win to chat %d: %s", chat_id, exc)
 
 
 async def _healthz(_: web.Request) -> web.Response:

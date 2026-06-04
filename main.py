@@ -13,7 +13,12 @@ from datetime import UTC, datetime
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
+from aiogram.types import (
+    BotCommand,
+    BotCommandScopeAllChatAdministrators,
+    BotCommandScopeAllGroupChats,
+    BotCommandScopeAllPrivateChats,
+)
 from aiohttp import web
 from dotenv import load_dotenv
 
@@ -29,31 +34,38 @@ from bot.web import create_app
 
 log = logging.getLogger("verba")
 
-# Commands shown in Telegram's "/" menu (descriptions are localized).
-_MENU_COMMANDS = [
-    "play",
+# Slash-command hints, scoped so groups stay clean: regular players in a group
+# see only the few group-relevant commands; group admins also see season/stats
+# controls; private chats get the full personal set.
+_PRIVATE_COMMANDS = ["play", "me", "stats", "lang", "help", "stop"]
+_GROUP_PLAYER_COMMANDS = ["register", "unregister", "play", "help"]
+_GROUP_ADMIN_COMMANDS = [
     "register",
     "unregister",
+    "play",
     "stats",
-    "me",
     "seasons",
-    "lang",
     "startseason",
     "finishseason",
     "help",
-    "stop",
 ]
 
 
 async def _set_commands(bot: Bot) -> None:
-    """Register the slash-command hints (default = English, plus uk/ru)."""
+    """Register localized slash-command hints per scope (default English + uk/ru)."""
 
-    def cmds(lang: str) -> list[BotCommand]:
-        return [BotCommand(command=c, description=t(f"cmd_{c}", lang)) for c in _MENU_COMMANDS]
+    def cmds(names: list[str], lang: str) -> list[BotCommand]:
+        return [BotCommand(command=c, description=t(f"cmd_{c}", lang)) for c in names]
 
-    await bot.set_my_commands(cmds("en"))  # default scope
-    await bot.set_my_commands(cmds("uk"), language_code="uk")
-    await bot.set_my_commands(cmds("ru"), language_code="ru")
+    scopes = [
+        (BotCommandScopeAllPrivateChats(), _PRIVATE_COMMANDS),
+        (BotCommandScopeAllGroupChats(), _GROUP_PLAYER_COMMANDS),
+        (BotCommandScopeAllChatAdministrators(), _GROUP_ADMIN_COMMANDS),
+    ]
+    for scope, names in scopes:
+        await bot.set_my_commands(cmds(names, "en"), scope=scope)  # default language
+        await bot.set_my_commands(cmds(names, "uk"), scope=scope, language_code="uk")
+        await bot.set_my_commands(cmds(names, "ru"), scope=scope, language_code="ru")
 
 
 def configure_logging() -> None:
