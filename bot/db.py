@@ -14,13 +14,16 @@ Tables:
 * ``competition`` — one row per (chat, user, day, lang) round for registered
   players: outcome (won/lost/skipped), points, and whether it was the first win
   in that group's round.
-* ``competition_first`` — the first winner per (chat, day, lang); used to award
-  the +3 first-guess bonus and announce exactly one winner per round per group.
+* ``competition_first`` — the first winner per (chat, season, day, lang); used to
+  award the first-guess bonus and announce exactly one winner per round.
+* ``season_history`` — the champion of each finished season per group.
 
 A "round" is a single (day, language) — there are three words per day, and a
-player scores in each language independently. Scoring: a win is +1 point, the
-first win in a group's round is +3 (total). Wins/losses/skips are counted per
-round; an unfinished or unplayed round becomes a skip at day close.
+player scores in each language independently. Scoring (see :func:`win_points`):
+a win earns ``max(1, 7 - attempts)`` (a 1-guess solve = 6 … a 6-guess solve = 1),
+plus ``FIRST_BONUS`` for being the first in the group to win that round. Skips
+are counted only for languages a player has joined (won/lost at least once this
+season); an unfinished or unplayed *joined* round becomes a skip at day close.
 
 Each group runs in **seasons** (``chats.season``, default 1, active by default).
 Competition rows are tagged with the season they were earned in, and the
@@ -49,7 +52,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-__all__ = ["VerbaDB", "Member", "Result", "Standing", "Status", "User"]
+__all__ = ["VerbaDB", "Champion", "Member", "Result", "Standing", "Status", "User", "win_points"]
 
 Status = Literal["in_progress", "won", "lost", "unfinished", "not_played"]
 TERMINAL: frozenset[str] = frozenset({"won", "lost"})
@@ -62,9 +65,18 @@ DEFAULT_USER_LANG = "uk"
 # self-contained; close_competition marks a skip for each unplayed language.
 COMP_LANGS: tuple[str, ...] = ("uk", "ru", "en")
 
-# Competition points.
-POINTS_WIN = 1
-POINTS_FIRST = 3
+# Competition scoring. A win is worth more the fewer guesses it took
+# (max(1, 7 - attempts): a 1-guess solve = 6, a 6-guess solve = 1), plus a
+# FIRST_BONUS for being the first registered player to win a group's round.
+MAX_GUESSES = 6
+FIRST_BONUS = 3
+
+
+def win_points(attempts: int | None, is_first: bool) -> int:
+    """Points for a winning round: efficiency base + optional first-win bonus."""
+    base = max(1, (MAX_GUESSES + 1) - (attempts or MAX_GUESSES))
+    return base + (FIRST_BONUS if is_first else 0)
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -122,6 +134,7 @@ CREATE TABLE IF NOT EXISTS competition (
     status   TEXT NOT NULL,            -- 'won' | 'lost' | 'skipped'
     points   INTEGER NOT NULL DEFAULT 0,
     is_first INTEGER NOT NULL DEFAULT 0,
+    attempts INTEGER,                  -- guesses used on a win (for tie-breaks)
     PRIMARY KEY (chat_id, user_id, day, lang)
 );
 CREATE INDEX IF NOT EXISTS idx_competition_round ON competition(chat_id, season, day, lang);
@@ -133,6 +146,15 @@ CREATE TABLE IF NOT EXISTS competition_first (
     lang    TEXT NOT NULL,
     user_id INTEGER NOT NULL,
     PRIMARY KEY (chat_id, season, day, lang)
+);
+
+CREATE TABLE IF NOT EXISTS season_history (
+    chat_id     INTEGER NOT NULL,
+    season      INTEGER NOT NULL,
+    user_id     INTEGER NOT NULL,      -- the champion (top of the leaderboard)
+    score       INTEGER NOT NULL,
+    finished_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (chat_id, season)
 );
 """
 
@@ -155,7 +177,7 @@ class Member:
 
 @dataclass(frozen=True, slots=True)
 class Standing:
-    """One registered player's cumulative standing in a group's competition."""
+    """One registered player's standing in a group's current season."""
 
     user_id: int
     username: str | None
@@ -164,6 +186,18 @@ class Standing:
     wins: int
     losses: int
     skips: int
+    avg_attempts: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class Champion:
+    """The winner of a finished season in a group."""
+
+    season: int
+    user_id: int
+    username: str | None
+    first_name: str | None
+    score: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +239,8 @@ class VerbaDB:
         comp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(competition)")}
         if comp_cols and "season" not in comp_cols:
             conn.execute("ALTER TABLE competition ADD COLUMN season INTEGER NOT NULL DEFAULT 1")
+        if comp_cols and "attempts" not in comp_cols:
+            conn.execute("ALTER TABLE competition ADD COLUMN attempts INTEGER")
 
         # competition_first gained ``season`` in its PRIMARY KEY; SQLite can't alter
         # a PK in place, so recreate it (it only holds the current day's first-win
@@ -397,13 +433,15 @@ class VerbaDB:
             return (1, True)
         return (int(row["season"]), bool(row["season_active"]))
 
-    def credit_competition(self, user_id: int, day: str, lang: str, status: Status) -> list[int]:
+    def credit_competition(
+        self, user_id: int, day: str, lang: str, status: Status, attempts: int | None = None
+    ) -> list[int]:
         """Attribute a terminal round result to every group the user is registered in.
 
-        Awards points (first win in a group's round = :data:`POINTS_FIRST`, any
-        other win = :data:`POINTS_WIN`, a loss = 0) and returns the chat ids where
-        this user was the *first* to win the round — i.e. the chats to announce to.
-        Idempotent per round: an already-finalized competition row is left intact.
+        Awards points via :func:`win_points` (efficiency base + first-win bonus; a
+        loss is 0) and returns the chat ids where this user was the *first* to win
+        the round — i.e. the chats to announce to. Groups whose season is inactive
+        are skipped (no points). Idempotent: an already-finalized row is untouched.
         """
         if status not in TERMINAL:
             return []
@@ -429,44 +467,54 @@ class VerbaDB:
                         (chat_id, season, day, lang, user_id),
                     )
                     is_first = cur.rowcount == 1
-                points = (POINTS_FIRST if is_first else POINTS_WIN) if status == "won" else 0
+                points = win_points(attempts, is_first) if status == "won" else 0
+                won_attempts = attempts if status == "won" else None
                 conn.execute(
                     "INSERT INTO competition "
-                    "    (chat_id, user_id, day, lang, season, status, points, is_first) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                    "    (chat_id, user_id, day, lang, season, status, points, is_first, attempts) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT(chat_id, user_id, day, lang) DO UPDATE SET "
                     "    season = excluded.season, status = excluded.status, "
-                    "    points = excluded.points, is_first = excluded.is_first "
+                    "    points = excluded.points, is_first = excluded.is_first, "
+                    "    attempts = excluded.attempts "
                     "WHERE competition.status NOT IN ('won', 'lost')",
-                    (chat_id, user_id, day, lang, season, status, points, 1 if is_first else 0),
+                    (
+                        chat_id,
+                        user_id,
+                        day,
+                        lang,
+                        season,
+                        status,
+                        points,
+                        1 if is_first else 0,
+                        won_attempts,
+                    ),
                 )
                 if is_first:
                     announce.append(chat_id)
         return announce
 
     def close_competition(self, day: str) -> None:
-        """Mark every unplayed/unfinished round as a skip for registered players.
+        """Mark a skip for each round a player *opted into* but didn't finish.
 
-        For each registration and each of :data:`COMP_LANGS`, insert a ``skipped``
-        row unless a won/lost row already exists for that round.
+        A player opts into a language by winning or losing it at least once in the
+        current season; only those languages can accrue skips — so someone who
+        plays a single language is never penalised for the other two. Active
+        seasons only; a round already played today won't be overwritten.
         """
         with closing(self._connect()) as conn, conn:
-            regs = conn.execute(
-                "SELECT r.chat_id AS chat_id, r.user_id AS user_id, "
-                "       COALESCE(ch.season, 1) AS season, "
-                "       COALESCE(ch.season_active, 1) AS active "
-                "FROM registrations r LEFT JOIN chats ch ON ch.chat_id = r.chat_id"
-            ).fetchall()
-            conn.executemany(
+            conn.execute(
                 "INSERT INTO competition (chat_id, user_id, day, lang, season, status) "
-                "VALUES (?, ?, ?, ?, ?, 'skipped') "
+                "SELECT r.chat_id, r.user_id, ?, c.lang, COALESCE(ch.season, 1), 'skipped' "
+                "FROM registrations r "
+                "LEFT JOIN chats ch ON ch.chat_id = r.chat_id "
+                "JOIN competition c "
+                "  ON c.chat_id = r.chat_id AND c.user_id = r.user_id "
+                " AND c.season = COALESCE(ch.season, 1) AND c.status IN ('won', 'lost') "
+                "WHERE COALESCE(ch.season_active, 1) = 1 "
+                "GROUP BY r.chat_id, r.user_id, c.lang "
                 "ON CONFLICT(chat_id, user_id, day, lang) DO NOTHING",
-                [
-                    (r["chat_id"], r["user_id"], day, lang, r["season"])
-                    for r in regs
-                    if r["active"]
-                    for lang in COMP_LANGS
-                ],
+                (day,),
             )
 
     def competition_standings(self, chat_id: int) -> list[Standing]:
@@ -478,7 +526,8 @@ class VerbaDB:
                 "       COALESCE(SUM(c.points), 0) AS score, "
                 "       COALESCE(SUM(c.status = 'won'), 0) AS wins, "
                 "       COALESCE(SUM(c.status = 'lost'), 0) AS losses, "
-                "       COALESCE(SUM(c.status = 'skipped'), 0) AS skips "
+                "       COALESCE(SUM(c.status = 'skipped'), 0) AS skips, "
+                "       AVG(CASE WHEN c.status = 'won' THEN c.attempts END) AS avg_attempts "
                 "FROM registrations r "
                 "LEFT JOIN competition c "
                 "       ON c.chat_id = r.chat_id AND c.user_id = r.user_id "
@@ -487,7 +536,8 @@ class VerbaDB:
                 "LEFT JOIN users u ON u.user_id = r.user_id "
                 "WHERE r.chat_id = ? "
                 "GROUP BY r.user_id "
-                "ORDER BY score DESC, wins DESC, first_name, r.user_id",
+                "ORDER BY score DESC, wins DESC, "
+                "         avg_attempts IS NULL, avg_attempts ASC, first_name, r.user_id",
                 (chat_id,),
             ).fetchall()
         return [
@@ -499,6 +549,37 @@ class VerbaDB:
                 wins=int(r["wins"]),
                 losses=int(r["losses"]),
                 skips=int(r["skips"]),
+                avg_attempts=float(r["avg_attempts"]) if r["avg_attempts"] is not None else None,
+            )
+            for r in rows
+        ]
+
+    def record_champion(self, chat_id: int, season: int, user_id: int, score: int) -> None:
+        """Store the winner of a finished season (no-op if already recorded)."""
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO season_history (chat_id, season, user_id, score) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT(chat_id, season) DO NOTHING",
+                (chat_id, season, user_id, score),
+            )
+
+    def season_history(self, chat_id: int) -> list[Champion]:
+        """Past season champions for a group, most recent first."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT h.season AS season, h.user_id AS user_id, h.score AS score, "
+                "       u.username AS username, u.first_name AS first_name "
+                "FROM season_history h LEFT JOIN users u ON u.user_id = h.user_id "
+                "WHERE h.chat_id = ? ORDER BY h.season DESC",
+                (chat_id,),
+            ).fetchall()
+        return [
+            Champion(
+                season=int(r["season"]),
+                user_id=int(r["user_id"]),
+                username=r["username"],
+                first_name=r["first_name"],
+                score=int(r["score"]),
             )
             for r in rows
         ]

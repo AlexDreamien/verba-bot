@@ -175,3 +175,64 @@ body {
   background: #201b2b;
   color: #5a5468;
 }
+
+.cbtoggle {
+  background: var(--tile);
+  border: 1px solid var(--tile-border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+  padding: 4px 8px;
+  margin-left: 6px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.cbtoggle.active {
+  opacity: 1;
+  border-color: var(--correct);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 1.2rem;
+  margin-bottom: 6px;
+}
+
+.actions .streak {
+  font-weight: 700;
+}
+
+.actions .share {
+  border: none;
+  border-radius: 8px;
+  background: var(--correct);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 22px;
+  cursor: pointer;
+}
+
+.actions .countdown {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+/* Colorblind palette (Okabe–Ito orange/blue): toggled via the ◐ button. */
+.cb .cell.correct,
+.cb .key.correct {
+  background: #f5793a;
+  border-color: #f5793a;
+  color: #1b1430;
+}
+
+.cb .cell.present,
+.cb .key.present {
+  background: #85c0f9;
+  border-color: #85c0f9;
+  color: #1b1430;
+}

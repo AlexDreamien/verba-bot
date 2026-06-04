@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bot.db import VerbaDB
+from bot.db import VerbaDB, win_points
 
 
 @pytest.fixture()
@@ -153,66 +153,89 @@ def test_credit_competition_first_and_subsequent(db):
     db.register(-100, 1)
     db.register(-100, 2)
 
-    # First winner of the (day, uk) round in this group: +3 and announced.
-    assert db.credit_competition(1, "1.05.2026", "uk", "won") == [-100]
-    # Second winner same round: +1, not announced.
-    assert db.credit_competition(2, "1.05.2026", "uk", "won") == []
+    # First winner of the (day, uk) round, solved in 3: max(1,7-3)=4, +3 first = 7.
+    assert db.credit_competition(1, "1.05.2026", "uk", "won", attempts=3) == [-100]
+    # Second winner same round, solved in 4: 3 points, not announced.
+    assert db.credit_competition(2, "1.05.2026", "uk", "won", attempts=4) == []
 
     standings = {s.user_id: s for s in db.competition_standings(-100)}
-    assert standings[1].score == 3
-    assert standings[2].score == 1
+    assert standings[1].score == 7
+    assert standings[2].score == 3
     assert standings[1].wins == 1 and standings[2].wins == 1
+    assert standings[1].avg_attempts == 3.0 and standings[2].avg_attempts == 4.0
+
+
+def test_win_points_scale():
+    assert win_points(1, False) == 6
+    assert win_points(6, False) == 1
+    assert win_points(2, True) == 5 + 3
+    assert win_points(None, True) == 1 + 3  # missing attempts -> worst base
 
 
 def test_credit_competition_per_language(db):
     db.register(-100, 1)
-    assert db.credit_competition(1, "1.05.2026", "uk", "won") == [-100]
+    assert db.credit_competition(1, "1.05.2026", "uk", "won", attempts=2) == [-100]
     # A different language is a separate round -> first again.
-    assert db.credit_competition(1, "1.05.2026", "en", "won") == [-100]
-    assert db.competition_standings(-100)[0].score == 6  # 3 + 3
+    assert db.credit_competition(1, "1.05.2026", "en", "won", attempts=2) == [-100]
+    assert db.competition_standings(-100)[0].score == 16  # (5+3) * 2
 
 
 def test_credit_competition_loss_and_unregistered(db):
     db.register(-100, 1)
     assert db.credit_competition(1, "1.05.2026", "uk", "lost") == []  # loss, no announce
     # Unregistered user earns nothing and triggers no announcement.
-    assert db.credit_competition(2, "1.05.2026", "uk", "won") == []
+    assert db.credit_competition(2, "1.05.2026", "uk", "won", attempts=1) == []
     s1 = db.competition_standings(-100)[0]
     assert s1.losses == 1 and s1.score == 0
     assert db.competition_standings(-200) == []  # no registrations there
 
 
-def test_close_competition_marks_skips(db):
+def test_close_competition_skips_only_joined_languages(db):
     db.register(-100, 1)
-    db.credit_competition(1, "1.05.2026", "uk", "won")  # plays uk only
-    db.close_competition("1.05.2026")
+    db.credit_competition(1, "1.05.2026", "uk", "won", attempts=3)  # joins uk only
+    db.close_competition("2.05.2026")  # next day: uk unplayed -> 1 skip
     s = db.competition_standings(-100)[0]
     assert s.wins == 1
-    assert s.skips == 2  # ru + en unplayed -> skipped; uk untouched
-    assert s.score == 3
+    assert s.skips == 1  # only uk (joined); ru/en never joined -> no skip
+    assert s.score == 7
 
 
-def test_competition_standings_orders_by_score(db):
+def test_competition_standings_orders_by_score_then_attempts(db):
     db.add_user(1, None, "Alice")
     db.add_user(2, None, "Bob")
     db.register(-100, 1)
     db.register(-100, 2)
-    db.credit_competition(2, "1.05.2026", "uk", "won")  # Bob first: 3
-    db.credit_competition(1, "1.05.2026", "uk", "won")  # Alice second: 1
-    db.credit_competition(1, "2.05.2026", "uk", "won")  # Alice first: 3 -> total 4
+    db.credit_competition(2, "1.05.2026", "uk", "won", attempts=2)  # Bob first: 8
+    db.credit_competition(1, "1.05.2026", "uk", "won", attempts=2)  # Alice second: 5
+    db.credit_competition(1, "2.05.2026", "uk", "won", attempts=2)  # Alice first: 8 -> 13
     order = [s.user_id for s in db.competition_standings(-100)]
-    assert order == [1, 2]  # Alice 4 pts ahead of Bob 3 pts
+    assert order == [1, 2]  # Alice 13 > Bob 8
 
 
 def test_unregister(db):
     db.register(-100, 1)
-    db.credit_competition(1, "1.05.2026", "uk", "won")
+    db.credit_competition(1, "1.05.2026", "uk", "won", attempts=3)
     assert db.unregister(-100, 1) is True
     assert db.unregister(-100, 1) is False  # already gone
     assert db.competition_standings(-100) == []  # leaves the leaderboard
     # Rejoining surfaces the preserved history again.
     db.register(-100, 1)
-    assert db.competition_standings(-100)[0].score == 3
+    assert db.competition_standings(-100)[0].score == 7
+
+
+def test_season_history_champions(db):
+    db.add_user(1, None, "Alice")
+    db.register(-100, 1)
+    db.credit_competition(1, "1.05.2026", "uk", "won", attempts=2)
+    finished = db.finish_season(-100)
+    board = db.competition_standings(-100)
+    db.record_champion(-100, finished, board[0].user_id, board[0].score)
+    champs = db.season_history(-100)
+    assert len(champs) == 1
+    assert champs[0].season == 1 and champs[0].user_id == 1 and champs[0].score == 8
+    # idempotent: a second record for the same season is ignored.
+    db.record_champion(-100, finished, 1, 999)
+    assert db.season_history(-100)[0].score == 8
 
 
 def test_seasons_default_and_lifecycle(db):
@@ -230,14 +253,14 @@ def test_seasons_default_and_lifecycle(db):
 
 def test_points_scoped_to_season(db):
     db.register(-100, 1)
-    db.credit_competition(1, "1.05.2026", "uk", "won")  # season 1: +3
-    assert db.competition_standings(-100)[0].score == 3
+    db.credit_competition(1, "1.05.2026", "uk", "won", attempts=3)  # season 1: 4+3=7
+    assert db.competition_standings(-100)[0].score == 7
     # New season resets the visible leaderboard.
     db.finish_season(-100)
     db.start_season(-100)  # -> season 2
     assert db.competition_standings(-100)[0].score == 0
-    db.credit_competition(1, "2.05.2026", "uk", "won")  # season 2: +3
-    assert db.competition_standings(-100)[0].score == 3
+    db.credit_competition(1, "2.05.2026", "uk", "won", attempts=3)  # season 2: 7
+    assert db.competition_standings(-100)[0].score == 7
 
 
 def test_no_points_while_season_inactive(db):

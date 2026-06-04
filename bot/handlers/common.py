@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import Config
@@ -16,8 +16,9 @@ from bot.keyboards import (
     LANG_CB_PREFIX,
     lang_keyboard,
     menu_keyboard,
+    play_keyboard,
 )
-from bot.stats import display_name, format_competition
+from bot.stats import display_name, format_competition, format_seasons
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -40,12 +41,24 @@ def effective_lang(db: VerbaDB, message: Message) -> str:
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, db: VerbaDB) -> None:
+async def cmd_start(message: Message, db: VerbaDB, config: Config, command: CommandObject) -> None:
     if message.from_user is None:
         return
     db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     db.set_subscribed(message.from_user.id, True)
     lang = user_lang(db, message.from_user.id)
+    # Deep link from a group's Play button: t.me/<bot>?start=reg_<chat_id>
+    arg = (command.args or "").strip()
+    if arg.startswith("reg_"):
+        try:
+            chat_id = int(arg.removeprefix("reg_"))
+        except ValueError:
+            chat_id = None
+        if chat_id is not None:
+            db.register(chat_id, message.from_user.id)
+            markup = play_keyboard(config.webapp_url, lang) if config.webapp_url else None
+            await message.answer(t("register_done_dm", lang), reply_markup=markup)
+            return
     await message.answer(t("welcome", lang), reply_markup=menu_keyboard(lang))
 
 
@@ -147,8 +160,23 @@ async def cmd_finishseason(message: Message, db: VerbaDB, config: Config) -> Non
     if finished is None:
         await message.answer(t("season_none", lang))
         return
-    board = format_competition(db.competition_standings(message.chat.id), finished, lang)
+    standings = db.competition_standings(message.chat.id)
+    if standings and standings[0].score > 0:
+        top = standings[0]
+        db.record_champion(message.chat.id, finished, top.user_id, top.score)
+    board = format_competition(standings, finished, lang)
     await message.answer(t("season_finished", lang, n=finished) + "\n\n" + board)
+
+
+@router.message(Command("seasons"))
+async def cmd_seasons(message: Message, db: VerbaDB) -> None:
+    if message.from_user is None:
+        return
+    if message.chat.type not in GROUP_TYPES:
+        await message.answer(t("group_only", user_lang(db, message.from_user.id)))
+        return
+    lang = db.get_chat_lang(message.chat.id)
+    await message.answer(format_seasons(db.season_history(message.chat.id), lang))
 
 
 @router.message(Command("help"))

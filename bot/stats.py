@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from bot.daily import parse_day
-from bot.db import Result, Standing
+from bot.db import Champion, Result, Standing
 from bot.i18n import t
 
 __all__ = [
@@ -25,6 +25,7 @@ __all__ = [
     "format_competition",
     "format_daily",
     "format_duration",
+    "format_seasons",
     "format_user",
 ]
 
@@ -195,6 +196,7 @@ def format_competition(standings: list[Standing], season: int, lang: str) -> str
     for i, s in enumerate(standings):
         rank = _MEDALS.get(i, f"{i + 1}.")
         name = display_name(s.first_name, s.username, s.user_id)
+        avg = f"{s.avg_attempts:.1f}" if s.avg_attempts is not None else "—"
         lines.append(
             t(
                 "comp_row",
@@ -205,6 +207,7 @@ def format_competition(standings: list[Standing], season: int, lang: str) -> str
                 wins=s.wins,
                 losses=s.losses,
                 skips=s.skips,
+                avg=avg,
             )
         )
     return (
@@ -214,6 +217,23 @@ def format_competition(standings: list[Standing], season: int, lang: str) -> str
         + "\n\n"
         + t("comp_legend", lang)
     )
+
+
+def format_seasons(champions: list[Champion], lang: str) -> str:
+    """Past season champions for a group, most recent first."""
+    if not champions:
+        return t("seasons_empty", lang)
+    lines = [
+        t(
+            "seasons_row",
+            lang,
+            season=c.season,
+            name=display_name(c.first_name, c.username, c.user_id),
+            score=c.score,
+        )
+        for c in champions
+    ]
+    return t("seasons_title", lang) + "\n\n" + "\n".join(lines)
 
 
 # --- helpers ---------------------------------------------------------------

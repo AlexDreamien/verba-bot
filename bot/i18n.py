@@ -72,13 +72,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "btn_help": "❓ Довідка",
         "comp_title": "🏆 Заліковий рейтинг групи · Сезон {season}",
         "comp_empty": "Поки ніхто не зареєструвався. Напишіть /register у групі, щоб брати участь у заліку.",
-        "comp_row": "{rank} {name} — {score} 🏆 (✅{wins} ❌{losses} 💤{skips})",
+        "comp_row": "{rank} {name} — {score} 🏆 ✅{wins} ❌{losses} 💤{skips} ⌀{avg}",
         "comp_legend": (
-            "🏆 очки · ✅ вгадано · ❌ не вгадано · 💤 пропущено\n"
-            "Перше вгадане слово дня = 3 очки, інакше = 1."
+            "🏆 очки · ✅ вгадано · ❌ не вгадано · 💤 пропущено · ⌀ сер. спроб\n"
+            "Очки: 6 за вгадане з 1 спроби … 1 за 6; +3 першому того дня."
         ),
         "register_done": "✅ {name}, тебе зараховано до заліку цієї групи! Тепер твої перемоги тут рахуються.",
         "register_already": "{name}, ти вже береш участь у заліку цієї групи.",
+        "register_done_dm": "✅ Тебе зараховано до заліку групи! Натисни, щоб зіграти 👇",
         "register_in_group": "Команда /register працює лише в груповому чаті. Додай мене в групу й напиши /register там.",
         "group_only": "Ця команда працює лише в груповому чаті.",
         "unregister_done": "👋 {name}, тебе виключено із заліку цієї групи. /register — повернутися.",
@@ -88,10 +89,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "season_already": "⚠️ Сезон {n} уже триває. Спочатку заверши його: /finishseason.",
         "season_finished": "🏆 Сезон {n} завершено! Підсумки:",
         "season_none": "Зараз немає активного сезону. /startseason — почати новий.",
+        "seasons_title": "📜 Чемпіони минулих сезонів",
+        "seasons_empty": "Ще не завершено жодного сезону. /finishseason підіб'є підсумки.",
+        "seasons_row": "🏆 Сезон {season}: {name} — {score} очок",
+        "share_title": "Поділитися результатом",
+        "share_promo": "🎮 Verba — щоденна гра в слова: t.me/{bot}",
         "group_win": "🎉 {name} перш(ий/а) вгадав(-ла) слово дня {flag} за {attempts}/6! +3 очки 🏆 Саме слово — таємниця 🤫",
         "cmd_play": "Зіграти в сьогоднішню гру",
         "cmd_register": "Взяти участь у заліку групи",
         "cmd_unregister": "Вийти із заліку групи",
+        "cmd_seasons": "Чемпіони минулих сезонів",
         "cmd_startseason": "Почати новий сезон (адмін)",
         "cmd_finishseason": "Завершити сезон (адмін)",
         "cmd_stats": "Статистика / рейтинг групи",
@@ -158,13 +165,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "btn_help": "❓ Помощь",
         "comp_title": "🏆 Зачёт группы · Сезон {season}",
         "comp_empty": "Пока никто не зарегистрировался. Напишите /register в группе, чтобы участвовать в зачёте.",
-        "comp_row": "{rank} {name} — {score} 🏆 (✅{wins} ❌{losses} 💤{skips})",
+        "comp_row": "{rank} {name} — {score} 🏆 ✅{wins} ❌{losses} 💤{skips} ⌀{avg}",
         "comp_legend": (
-            "🏆 очки · ✅ угадано · ❌ не угадано · 💤 пропущено\n"
-            "Первое угаданное слово дня = 3 очка, остальные = 1."
+            "🏆 очки · ✅ угадано · ❌ не угадано · 💤 пропущено · ⌀ ср. попыток\n"
+            "Очки: 6 за угаданное с 1 попытки … 1 за 6; +3 первому в тот день."
         ),
         "register_done": "✅ {name}, ты в зачёте этой группы! Теперь твои победы здесь считаются.",
         "register_already": "{name}, ты уже участвуешь в зачёте этой группы.",
+        "register_done_dm": "✅ Ты в зачёте группы! Жми, чтобы сыграть 👇",
         "register_in_group": "Команда /register работает только в групповом чате. Добавь меня в группу и напиши /register там.",
         "group_only": "Эта команда работает только в групповом чате.",
         "unregister_done": "👋 {name}, ты вышел(а) из зачёта этой группы. /register — вернуться.",
@@ -174,10 +182,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "season_already": "⚠️ Сезон {n} уже идёт. Сначала заверши его: /finishseason.",
         "season_finished": "🏆 Сезон {n} завершён! Итоги:",
         "season_none": "Сейчас нет активного сезона. /startseason — начать новый.",
+        "seasons_title": "📜 Чемпионы прошлых сезонов",
+        "seasons_empty": "Ещё не завершён ни один сезон. /finishseason подведёт итоги.",
+        "seasons_row": "🏆 Сезон {season}: {name} — {score} очков",
+        "share_title": "Поделиться результатом",
+        "share_promo": "🎮 Verba — ежедневная игра в слова: t.me/{bot}",
         "group_win": "🎉 {name} первым(-ой) угадал(а) слово дня {flag} за {attempts}/6! +3 очка 🏆 Само слово — секрет 🤫",
         "cmd_play": "Сыграть в сегодняшнюю игру",
         "cmd_register": "Участвовать в зачёте группы",
         "cmd_unregister": "Выйти из зачёта группы",
+        "cmd_seasons": "Чемпионы прошлых сезонов",
         "cmd_startseason": "Начать новый сезон (админ)",
         "cmd_finishseason": "Завершить сезон (админ)",
         "cmd_stats": "Статистика / зачёт группы",
@@ -244,13 +258,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "btn_help": "❓ Help",
         "comp_title": "🏆 Group leaderboard · Season {season}",
         "comp_empty": "No one has registered yet. Send /register in the group to join the competition.",
-        "comp_row": "{rank} {name} — {score} 🏆 (✅{wins} ❌{losses} 💤{skips})",
+        "comp_row": "{rank} {name} — {score} 🏆 ✅{wins} ❌{losses} 💤{skips} ⌀{avg}",
         "comp_legend": (
-            "🏆 points · ✅ guessed · ❌ missed · 💤 skipped\n"
-            "First to guess the day's word = 3 pts, otherwise = 1."
+            "🏆 points · ✅ guessed · ❌ missed · 💤 skipped · ⌀ avg tries\n"
+            "Points: 6 for a 1-try win … 1 for 6 tries; +3 to the day's first."
         ),
         "register_done": "✅ {name}, you're in this group's competition! Your wins here now count.",
         "register_already": "{name}, you're already in this group's competition.",
+        "register_done_dm": "✅ You're in the group's competition! Tap to play 👇",
         "register_in_group": "/register only works in a group chat. Add me to a group and send /register there.",
         "group_only": "This command only works in a group chat.",
         "unregister_done": "👋 {name}, you've left this group's competition. /register to rejoin.",
@@ -260,10 +275,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "season_already": "⚠️ Season {n} is already running. Finish it first: /finishseason.",
         "season_finished": "🏆 Season {n} finished! Final standings:",
         "season_none": "No season is active right now. /startseason to begin a new one.",
+        "seasons_title": "📜 Past season champions",
+        "seasons_empty": "No season has finished yet. /finishseason will wrap one up.",
+        "seasons_row": "🏆 Season {season}: {name} — {score} pts",
+        "share_title": "Share your result",
+        "share_promo": "🎮 Verba — the daily word game: t.me/{bot}",
         "group_win": "🎉 {name} was first to guess today's word {flag} in {attempts}/6! +3 pts 🏆 The word stays secret 🤫",
         "cmd_play": "Play today's game",
         "cmd_register": "Join the group competition",
         "cmd_unregister": "Leave the group competition",
+        "cmd_seasons": "Past season champions",
         "cmd_startseason": "Start a new season (admin)",
         "cmd_finishseason": "Finish the season (admin)",
         "cmd_stats": "Stats / group leaderboard",

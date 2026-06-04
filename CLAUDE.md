@@ -14,7 +14,7 @@ APScheduler 3 + SQLite. See `README.md`.
 pip install -r requirements-dev.txt
 cp .env.example .env            # set BOT_TOKEN, ADMIN_IDS, WEBAPP_URL
 python main.py
-pytest                          # 97 tests
+pytest                          # 101 tests
 ruff check . && black --check .
 ```
 
@@ -93,6 +93,22 @@ the aiohttp collector + the scheduler in one asyncio process.
 - **Group-admin gate:** season commands use `_is_group_admin` (Telegram
   `get_chat_member` status `administrator`/`creator`, or a configured global
   admin). Any API failure → treated as not-admin.
+- **Scoring is efficiency-weighted** (`db.win_points`): `max(1, 7-attempts)` +
+  `FIRST_BONUS`. `credit_competition` takes `attempts` (from `web._result`) and
+  stores it on the row; standings tie-break by lower avg attempts (NULLs last).
+- **Skips only for joined languages:** `close_competition` inserts a skip only
+  for `(chat,user,lang)` that already has a won/lost row this season — so a
+  one-language player never accrues skips for the other two.
+- **Seasons end → champion:** `cmd_finishseason` records `season_history` top
+  scorer; `/seasons` lists them.
+- **Daily word order is a seeded shuffle** (`engine.js` `seededOrder`/`seedFor`),
+  not alphabetical — per-locale seed also de-correlates ru/uk. The word still
+  lives client-side (we kept offline play; see review notes). `tools/build_words.py`
+  auto-expands `answers` to ~365 from frequency ∩ hunspell lemmas (+ BLOCKLIST);
+  capitalised `.dic` entries are skipped to drop proper names.
+- **Share grid uses inline mode** only if `window.VERBA_INLINE_SHARE` is true
+  (needs BotFather `/setinline`); the bot's `inline_query` handler echoes the
+  grid. Default path is clipboard copy.
 - **`game.router` is included LAST** because its catch-all `F.text` handler
   (mentions → menu) would otherwise shadow command handlers in other routers.
   Menu callbacks use `query.from_user` (the requester), not the message author

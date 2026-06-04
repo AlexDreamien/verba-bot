@@ -42,6 +42,11 @@
         already: "Сегодня уже сыграно",
         notInList: "Нет такого слова в словаре",
         switchWarn: "Сменить язык? Текущее слово будет засчитано как проигрыш.",
+        share: "📤 Поделиться",
+        shareCopied: "Результат скопирован!",
+        nextWord: "Следующее слово через {t}",
+        streak: "Серия: {n} 🔥",
+        cbHint: "Режим для дальтоников",
       },
     },
     uk: {
@@ -58,6 +63,11 @@
         already: "Сьогодні вже зіграно",
         notInList: "Немає такого слова у словнику",
         switchWarn: "Змінити мову? Поточне слово буде зараховане як програш.",
+        share: "📤 Поділитися",
+        shareCopied: "Результат скопійовано!",
+        nextWord: "Наступне слово через {t}",
+        streak: "Серія: {n} 🔥",
+        cbHint: "Режим для дальтоніків",
       },
     },
     en: {
@@ -74,6 +84,11 @@
         already: "Already played today",
         notInList: "Not in word list",
         switchWarn: "Switch language? The current word will count as a loss.",
+        share: "📤 Share",
+        shareCopied: "Result copied!",
+        nextWord: "Next word in {t}",
+        streak: "Streak: {n} 🔥",
+        cbHint: "Colorblind mode",
       },
     },
   };
@@ -99,12 +114,50 @@
     return Math.floor((Date.UTC(ymd.y, ymd.m - 1, ymd.d) - EPOCH_UTC) / DAY_MS);
   }
 
+  // The answer pools are stored alphabetically; walking them by day number would
+  // make tomorrow's word trivially predictable ("the next one alphabetically").
+  // We deterministically permute each pool with a per-locale seed so the order is
+  // scrambled but stable. (The word still lives client-side — this only removes
+  // the casual tell, like the original Wordle.)
+  var SHUFFLE_SEED = 0x9e3779b1;
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function seedFor(lang) {
+    var s = SHUFFLE_SEED;
+    for (var i = 0; i < lang.length; i++) s = (Math.imul(s, 31) + lang.charCodeAt(i)) | 0;
+    return s;
+  }
+
+  function seededOrder(len, seed) {
+    var idx = [];
+    for (var i = 0; i < len; i++) idx.push(i);
+    var rnd = mulberry32(seed);
+    for (var j = len - 1; j > 0; j--) {
+      var k = Math.floor(rnd() * (j + 1));
+      var tmp = idx[j];
+      idx[j] = idx[k];
+      idx[k] = tmp;
+    }
+    return idx;
+  }
+
   function wordForToday(lang, ymd) {
     var pool = (window.VERBA_WORDS && window.VERBA_WORDS[lang]) || {};
     var list = pool.answers || [];
     if (!list.length) return "";
+    var order = seededOrder(list.length, seedFor(lang));
     var n = dayNumber(ymd);
-    return list[((n % list.length) + list.length) % list.length];
+    var i = ((n % list.length) + list.length) % list.length;
+    return list[order[i]];
   }
 
   // --- guess evaluation (two-pass, duplicate-safe) -------------------------
@@ -233,6 +286,7 @@
     if (state.done) return;
     if (state.current.length < WORD_LEN) {
       message(ui().tooShort);
+      haptic("error");
       return;
     }
     var guess = state.current;
@@ -240,6 +294,7 @@
     // and no tiles are revealed.
     if (!state.accepted.has(guess)) {
       message(ui().notInList);
+      haptic("error");
       return;
     }
     state.guesses.push(guess);
@@ -251,6 +306,7 @@
       saveProgress();
       render();
       message(ui().win);
+      haptic("success");
       window.logEvent("game_success", {
         index: state.guesses.length - 1,
         lang: state.lang,
@@ -265,6 +321,7 @@
       saveProgress();
       render();
       message(fmt(ui().lose, { w: state.answer.toUpperCase() }));
+      haptic("error");
       window.logEvent("game_failed", { lang: state.lang, day: state.day });
       return;
     }
@@ -331,6 +388,11 @@
     header.appendChild(els.title);
     els.langbar = div("langbar");
     header.appendChild(els.langbar);
+    els.cbtoggle = document.createElement("button");
+    els.cbtoggle.className = "cbtoggle";
+    els.cbtoggle.textContent = "◐";
+    els.cbtoggle.onclick = toggleColorblind;
+    header.appendChild(els.cbtoggle);
     root.appendChild(header);
 
     els.prompt = div("prompt");
@@ -342,8 +404,38 @@
     els.message = div("message");
     root.appendChild(els.message);
 
+    els.actions = div("actions");
+    root.appendChild(els.actions);
+
     els.keyboard = div("keyboard");
     root.appendChild(els.keyboard);
+
+    applyColorblind(loadColorblind());
+  }
+
+  // --- colorblind palette --------------------------------------------------
+
+  function loadColorblind() {
+    try {
+      return localStorage.getItem("verba_cb") === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function applyColorblind(on) {
+    document.body.classList.toggle("cb", !!on);
+    if (els.cbtoggle) els.cbtoggle.classList.toggle("active", !!on);
+  }
+
+  function toggleColorblind() {
+    var on = !document.body.classList.contains("cb");
+    applyColorblind(on);
+    try {
+      localStorage.setItem("verba_cb", on ? "1" : "0");
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function renderLangbar() {
@@ -421,13 +513,164 @@
     return b;
   }
 
+  // --- end-of-game actions: share, streak, countdown ----------------------
+
+  function renderActions() {
+    var box = els.actions;
+    box.innerHTML = "";
+    stopCountdown();
+    if (!state.done) return;
+
+    var streak = localStreak(state.lang);
+    if (streak > 0) {
+      var st = div("streak");
+      st.textContent = fmt(ui().streak, { n: streak });
+      box.appendChild(st);
+    }
+
+    var btn = document.createElement("button");
+    btn.className = "share";
+    btn.textContent = ui().share;
+    btn.onclick = doShare;
+    box.appendChild(btn);
+
+    els.countdown = div("countdown");
+    box.appendChild(els.countdown);
+    startCountdown();
+  }
+
+  function shareText() {
+    var head =
+      "Verba " +
+      state.day +
+      " " +
+      LOCALES[state.lang].flag +
+      " " +
+      (state.won ? state.guesses.length : "X") +
+      "/" +
+      MAX_GUESSES;
+    var grid = state.guesses
+      .map(function (g) {
+        return evaluate(g, state.answer)
+          .map(function (c) {
+            return c === "correct" ? "🟩" : c === "present" ? "🟨" : "⬛";
+          })
+          .join("");
+      })
+      .join("\n");
+    return head + "\n" + grid;
+  }
+
+  function doShare() {
+    var text = shareText();
+    var tg = window.Telegram && window.Telegram.WebApp;
+    if (window.VERBA_INLINE_SHARE && tg && typeof tg.switchInlineQuery === "function") {
+      try {
+        tg.switchInlineQuery(text, ["users", "groups", "channels"]);
+        return;
+      } catch (e) {
+        /* fall through to clipboard */
+      }
+    }
+    var ok = function () {
+      message(ui().shareCopied);
+      haptic("success");
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, function () {
+        message(text);
+      });
+    } else {
+      message(text);
+    }
+  }
+
+  function pad2(n) {
+    return ("0" + n).slice(-2);
+  }
+
+  function secondsToKyivMidnight() {
+    var now = new Date();
+    var k = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Kyiv" }));
+    var secs = k.getHours() * 3600 + k.getMinutes() * 60 + k.getSeconds();
+    return Math.max(0, 24 * 3600 - secs);
+  }
+
+  function updateCountdown() {
+    if (!els.countdown) return;
+    var s = secondsToKyivMidnight();
+    var hhmmss = pad2(Math.floor(s / 3600)) + ":" + pad2(Math.floor((s % 3600) / 60)) + ":" + pad2(s % 60);
+    els.countdown.textContent = fmt(ui().nextWord, { t: hhmmss });
+  }
+
+  function startCountdown() {
+    updateCountdown();
+    els._cd = window.setInterval(updateCountdown, 1000);
+  }
+
+  function stopCountdown() {
+    if (els._cd) {
+      window.clearInterval(els._cd);
+      els._cd = null;
+    }
+  }
+
+  function haptic(kind) {
+    var tg = window.Telegram && window.Telegram.WebApp;
+    var hf = tg && tg.HapticFeedback;
+    if (!hf) return;
+    try {
+      if (kind === "success") hf.notificationOccurred("success");
+      else if (kind === "error") hf.notificationOccurred("error");
+      else hf.impactOccurred("light");
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  // Best-effort local streak from saved per-day progress (single device).
+  function loadByDate(lang, ms) {
+    var d = new Date(ms);
+    var key =
+      "verba:" +
+      lang +
+      ":" +
+      (d.getUTCDate() + "." + pad2(d.getUTCMonth() + 1) + "." + d.getUTCFullYear());
+    try {
+      var raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function localStreak(lang) {
+    var ymd = kyivYMD();
+    var ms = Date.UTC(ymd.y, ymd.m - 1, ymd.d);
+    var today = loadByDate(lang, ms);
+    if (!today || !today.done) ms -= DAY_MS; // today unfinished -> count up to yesterday
+    var streak = 0;
+    for (var i = 0; i < 4000; i++) {
+      var p = loadByDate(lang, ms);
+      if (p && p.done && p.won) {
+        streak++;
+        ms -= DAY_MS;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
   function render() {
     if (!els.board) buildShell();
     els.title.textContent = ui().title;
     els.prompt.textContent = ui().prompt;
+    els.cbtoggle.title = ui().cbHint;
     renderLangbar();
     renderBoard();
     renderKeyboard();
+    renderActions();
   }
 
   function message(text) {

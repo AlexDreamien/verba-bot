@@ -8,3 +8,8 @@
 // (cloudflared/ngrok) URL. This placeholder is committed; the real value is
 // environment-specific.
 window.VERBA_BACKEND_URL = "https://verba-bot.fly.dev";
+
+// Set to true only after enabling inline mode for the bot in @BotFather
+// (/setinline). When true, the "Share" button posts the result grid into any
+// chat via Telegram's inline mode; otherwise it copies the grid to the clipboard.
+window.VERBA_INLINE_SHARE = false;
