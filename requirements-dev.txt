@@ -4,3 +4,7 @@ pytest-asyncio>=0.23,<1.0
 pytest-aiohttp>=1.0,<2.0
 ruff>=0.4,<1.0
 black>=24.0,<25.0
+# Optional, used only by tools/build_words.py for the ru/uk NOUN answer filter.
+pymorphy3>=2.0,<3.0
+pymorphy3-dicts-ru
+pymorphy3-dicts-uk
