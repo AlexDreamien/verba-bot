@@ -8,6 +8,11 @@ Each locale gets two pools:
   lost) and auto-expanded with the most frequent words that are also hunspell
   lemmas — frequency keeps them common, the dictionary check filters out junk
   tokens, inflected forms, and proper names; a BLOCKLIST removes slurs/leftovers.
+  For ru/uk the pool is restricted to **nouns in dictionary form** (pymorphy3):
+  verbs/adverbs/adjectives stay guessable via ``accepted`` but are never the
+  answer of the day. Install the optional deps for the filter:
+  ``pip install pymorphy3 pymorphy3-dicts-ru pymorphy3-dicts-uk`` (without them
+  the filter is a no-op and a warning is printed).
 * ``accepted`` — a large dictionary of valid 5-letter words used ONLY to
   validate guesses (any real word is accepted, repeats allowed). It is the union
   of the external word lists, the hunspell lemmas, and the ``answers``.
@@ -225,15 +230,59 @@ def freq_ranked(lang: str, text: str) -> list[str]:
     return out
 
 
-def expand_answers(lang: str, curated: list[str], lemmas: set[str]) -> list[str]:
-    """Curated answers plus the most frequent *dictionary* words, up to ANSWER_TARGET.
+# POS filter: only NOUNS are used as daily answers for ru/uk (verbs, adverbs,
+# adjectives stay guessable via ``accepted`` but are never the word of the day).
+# Uses pymorphy3 + dicts (build-time only: pip install pymorphy3 pymorphy3-dicts-ru
+# pymorphy3-dicts-uk). If unavailable, the filter is a no-op (all words kept) and
+# a warning is printed.
+_MORPH: dict[str, object] = {}
 
-    A frequency candidate is only added if it is a hunspell lemma (``lemmas``),
-    which filters junk tokens, inflected forms, and most proper names.
+
+def _noun_checker(lang: str):
+    """Return ``is_noun(word) -> bool`` for ru/uk; an accept-all for other langs."""
+    if lang not in ("ru", "uk"):
+        return lambda _w: True
+    if lang not in _MORPH:
+        try:
+            import pymorphy3
+
+            _MORPH[lang] = pymorphy3.MorphAnalyzer(lang=lang)
+        except Exception as exc:  # noqa: BLE001 — degrade gracefully without the dep
+            print(f"{lang}: NOUN filter DISABLED (pymorphy3 unavailable: {exc})")
+            _MORPH[lang] = None
+    morph = _MORPH[lang]
+    if morph is None:
+        return lambda _w: True
+
+    # Require the word to be a noun in its DICTIONARY form (normal_form == word):
+    # this keeps base nouns ("вагон") but rejects oblique forms that merely look
+    # like adverbs ("рядом" = instr. of "ряд", "разом" = instr. of "раз").
+    def is_noun(w: str) -> bool:
+        return any(p.tag.POS == "NOUN" and p.normal_form == w for p in morph.parse(w))
+
+    return is_noun
+
+
+def expand_answers(lang: str, curated: list[str], lemmas: set[str]) -> list[str]:
+    """Noun answers: curated + the most frequent dictionary *nouns*, up to target.
+
+    A candidate must be a hunspell lemma (filters junk/inflections/names) and, for
+    ru/uk, a NOUN (verbs/adverbs/adjectives are excluded from the daily pool but
+    remain in ``accepted``).
     """
-    answers = list(curated)
-    seen = set(answers)
+    is_noun = _noun_checker(lang)
     block = BLOCKLIST.get(lang, set())
+    answers: list[str] = []
+    seen: set[str] = set()
+    kept_curated = 0
+    for w in curated:
+        if w in seen:
+            continue
+        seen.add(w)
+        if is_noun(w):
+            answers.append(w)
+            kept_curated += 1
+
     # ru/uk reuse the already-cached frequency lists (keys "ru"/"uk"); en's main
     # cache is words_alpha (not ranked), so its frequency list needs its own key.
     cache_key = "en_freq" if lang == "en" else lang
@@ -248,10 +297,11 @@ def expand_answers(lang: str, curated: list[str], lemmas: set[str]) -> list[str]
             break
         if w in seen or w in block or (lemmas and w not in lemmas):
             continue
-        answers.append(w)
         seen.add(w)
-        added += 1
-    print(f"{lang}: curated={len(curated)} +auto={added} -> answers={len(answers)}")
+        if is_noun(w):
+            answers.append(w)
+            added += 1
+    print(f"{lang}: curated_nouns={kept_curated} +auto_nouns={added} -> answers={len(answers)}")
     return sorted(answers)
 
 
